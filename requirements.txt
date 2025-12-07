@@ -1,0 +1,9 @@
+# For data aquisition
+pyserial
+aiobmsble
+# For dataset creation and management
+h5py
+dvc
+dvc[gdrive]
+# For environment variable management
+python-dotenv
