@@ -1,2 +1,9 @@
 # Ignore virtual environment directories
 /.venv
+
+# Ignore dataset
+/dataset/hoverboard_bms_dataset.h5
+
+# Ignore Python cache files
+__pycache__/
+*.pyc

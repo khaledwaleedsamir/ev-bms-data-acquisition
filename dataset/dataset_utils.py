@@ -137,8 +137,6 @@ def append_row(hdf5_file: str, run_name: str, timestamp_ms: float, time_string: 
                 raise KeyError(f"Hoverboard dataset '{key}' not found in run '{run_name}'")
             ds = g_hover[key]
 
-            if value is None:
-                value = np.nan
 
             # Handle 2D arrays
             if len(ds.shape) == 2:
@@ -157,9 +155,6 @@ def append_row(hdf5_file: str, run_name: str, timestamp_ms: float, time_string: 
             if key not in g_bms:
                 raise KeyError(f"BMS dataset '{key}' not found in run '{run_name}'")
             ds = g_bms[key]
-
-            if value is None:
-                value = np.nan
 
             # Handle 2D arrays
             if len(ds.shape) == 2:

@@ -49,14 +49,12 @@ bms_init_sample = {
     "voltage": 0.0,
     "current": 0.0,
     "cycle_charge": 0,
-    "total_charge": 0,
     "temp_sensors": 0,
     "temp_values": [0, 0, 0],
     "power": 0.0,
     "cycle_capacity": 0.0,
     "cycles": 0,
     "delta_voltage": 0.0,
-    "balance_current": 0.0,
     "temperature": 0.0,
     "cell_count": 0,
     "cell_voltages": [0.0]*10
@@ -114,12 +112,12 @@ print(f"Hoverboard started on {hb_com_port} at {hb_baud_rate} baud.")
 print(f"BMS Reader started for device {bms_name}.")
 print("Starting run:", run_name)
 print("Run Description:", run_metadata["description"])
-
-# Start logger thread
-logger_thread = threading.Thread(target=data_logger,args=(hoverboard, bms_reader))
-logger_thread.start()
 # Ramp hoverboard to target speed
 hoverboard.ramp_speed(speed)
 print("Starting Run...")
 print(f"Hoverboard ramped to speed {speed}.")
+time.sleep(2)  # wait for hoverboard to stabilize
+# Start logger thread
+logger_thread = threading.Thread(target=data_logger,args=(hoverboard, bms_reader))
+logger_thread.start()
 print("Simulation will stop when BMS SOC reaches", stop_soc, "%")
