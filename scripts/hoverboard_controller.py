@@ -128,7 +128,15 @@ class HoverboardController:
 
     def get_feedback(self):
         with self.latest_feedback_lock:
-            return self.latest_feedback
+            if self.latest_feedback is None:
+                return None
+            hb_dict = {
+                "hb_speedR_meas": self.latest_feedback["speedR_meas"],
+                "hb_speedL_meas": self.latest_feedback["speedL_meas"],
+                "hb_measured_voltage": self.latest_feedback["batVoltage"]/100,
+                "hb_board_temp": self.latest_feedback["boardTemp"]/10
+            }
+            return hb_dict
     
     def print_loop(self):
         while not self.stop_threads_flag:

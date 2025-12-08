@@ -53,6 +53,27 @@ class BMSReader:
             self._thread.join()
     
     def get_latest(self) -> BMSSample | None:
+        """Return the latest BMS sample with only the fields needed for logging."""
         with self._lock:
-            return self.latest_sample
+            if self.latest_sample is None:
+                return None
+            return {
+                "battery_charging": self.latest_sample.get("battery_charging"),
+                "battery_level": self.latest_sample.get("battery_level"),
+                "voltage": self.latest_sample.get("voltage"),
+                "current": self.latest_sample.get("current"),
+                "cycle_charge": self.latest_sample.get("cycle_charge"),
+                "total_charge": self.latest_sample.get("total_charge"),
+                "temp_sensors": self.latest_sample.get("temp_sensors"),
+                "temp_values": self.latest_sample.get("temp_values"),
+                "power": self.latest_sample.get("power"),
+                "cycle_capacity": self.latest_sample.get("cycle_capacity"),
+                "cycles": self.latest_sample.get("cycles"),
+                "delta_voltage": self.latest_sample.get("delta_voltage"),
+                "balance_current": self.latest_sample.get("balance_current"),
+                "temperature": self.latest_sample.get("temperature"),
+                "cell_count": self.latest_sample.get("cell_count"),
+                "cell_voltages": self.latest_sample.get("cell_voltages"),
+
+            }
 
