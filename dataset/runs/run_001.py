@@ -7,8 +7,8 @@ Batteries type: li-ion
 Batteries age: new
 """
 from dataset.dataset_utils import init_run, append_row, get_timestamp, get_date_string, get_time_string, init_run_dynamic
-from scripts.hoverboard_controller import HoverboardController
-from scripts.bms_reader import BMSReader
+from drivers.hoverboard_controller import HoverboardController
+from drivers.bms_reader import BMSReader
 import threading
 import time
 
@@ -25,13 +25,13 @@ run_metadata = {
     "battery_pack": "Lithium-Ion, 41.5V, 10.2Ah",
     "battery_age": "new"
 }
-speed = 1000                   # constant speed to maintain
-stop_soc = 40.0                # stop run when SOC reaches this value
-hb_com_port = "COM5"           # Hoverboard COM port
-hb_baud_rate = 115200          # Hoverboard baud rate
-bms_name = "EGIKE_STATION_1"   # BMS device name
-LOG_HZ = 10                    # Logging interval (Hz)
-sample_interval = 1.0 / LOG_HZ # seconds
+speed = 1000                    # constant speed to maintain
+stop_soc = 40.0                 # stop run when SOC reaches this value
+hb_com_port = "COM5"            # Hoverboard COM port
+hb_baud_rate = 115200           # Hoverboard baud rate
+bms_name = "EGIKE_STATION_1"    # BMS device name
+LOG_HZ = 1                      # Logging interval (Hz)
+sample_interval = 1.0 / LOG_HZ  # seconds
 
 ######################################## END OF CONFIGS ########################################
 

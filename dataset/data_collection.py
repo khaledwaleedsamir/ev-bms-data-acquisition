@@ -1,5 +1,5 @@
-from scripts.hoverboard_controller import HoverboardController
-from scripts.bms_reader import BMSReader
+from drivers.hoverboard_controller import HoverboardController
+from drivers.bms_reader import BMSReader
 from dataset.dataset_utils import init_run, append_row
 import time
 
