@@ -1,7 +1,7 @@
 """
 Docstring for dataset.runs.run_001
 Run ID: run_001
-Description: Running hoverboard at a constant full speed of 1000 from 100% SOC to 40% SOC.
+Description: Running hoverboard at a constant 80% speed from 100% SOC to 90% SOC.
 Battery Pack: Lithium-Ion, 41.5V, 10.2Ah
 Batteries type: li-ion
 Batteries age: new
@@ -18,15 +18,15 @@ import time
 hdf5_file = "dataset/hoverboard_bms_dataset.h5"
 
 # run parameters
-run_name = "run_001"
+run_name = "run_003"
 run_metadata = {
-    "description": "Running hoverboard at a constant full speed from 100% SOC to 40% SOC.",
+    "description": "Running hoverboard at a constant 80% speed from 100% SOC to 85% SOC.",
     "date": get_date_string(),
     "battery_pack": "Lithium-Ion, 41.5V, 10.2Ah",
     "battery_age": "new"
 }
-speed = 580                    # constant speed to maintain
-stop_soc = 40.0                 # stop run when SOC reaches this value
+speed = 460                     # constant speed to maintain
+stop_soc = 85.0                 # stop run when SOC reaches this value
 hb_com_port = "COM5"            # Hoverboard COM port
 hb_baud_rate = 115200           # Hoverboard baud rate
 bms_name = "EGIKE_STATION_1"    # BMS device name
