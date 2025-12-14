@@ -48,7 +48,7 @@ def plot_signals(df, time_col, signals, title="Plot", xlabel="Time", ylabel="Val
 
     plt.tight_layout()
 
-df = pd.read_excel(r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\runs_excel\run_002_downsampled.xlsx")
+df = pd.read_excel(r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\runs_excel\run_001_downsampled.xlsx")
 time_col = "timestamp" if "timestamp" in df.columns else "time"
 if "timestamp" not in df.columns:
     df["time"] = range(len(df))
@@ -83,4 +83,9 @@ plot_signals(df, time_col, "hoverboard/hb_board_temp",
 plot_signals(df, time_col, temp_cols,
              title="Battery Temperature Sensors Over Time",
              ylabel="Temperature (°C)")
+
+plot_signals(df, time_col, ["hoverboard/hb_speedR_meas", "hoverboard/hb_speedL_meas"],
+             title="Hoverboard Wheel Speeds vs Time",
+             ylabel="Speed (RPM)")
+
 plt.show()
