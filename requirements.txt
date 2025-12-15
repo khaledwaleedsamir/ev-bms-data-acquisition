@@ -7,3 +7,8 @@ dvc
 dvc[gdrive]
 # For environment variable management
 python-dotenv
+# For data analysis
+pandas
+numpy
+# For matplotlib visualizations
+matplotlib
