@@ -1,13 +1,8 @@
 """
-Docstring for dataset.runs.run_001
-Run ID: run_001
-Description: Running hoverboard at a constant 80% speed from 100% SOC to 90% SOC.
-Battery Pack: Lithium-Ion, 41.5V, 10.2Ah
-Batteries type: li-ion
-Batteries age: new
+Docstring for dataset.runs.charge_run.py
+Description: charging the battery after a discharge run.
 """
-from dataset.dataset_utils import init_run, append_row, get_timestamp, get_date_string, get_time_string, init_run_dynamic
-from drivers.hoverboard_controller import HoverboardController
+from dataset.dataset_utils import append_row, get_timestamp, get_date_string, get_time_string, init_run_dynamic
 from drivers.bms_reader import BMSReader
 import threading
 import time
@@ -18,17 +13,17 @@ import time
 hdf5_file = "dataset/hoverboard_bms_dataset.h5"
 
 # run parameters
-run_name = "run_003"
+run_name = "run_002"
 run_metadata = {
-    "description": "Running hoverboard at a constant 80% speed from 100% SOC to 85% SOC.",
+    "description": "charging the battery from 50% to 100% SOC after run_001.",
     "date": get_date_string(),
     "battery_pack": "Lithium-Ion, 41.5V, 10.2Ah",
     "battery_age": "new"
 }
-speed = 460                     # constant speed to maintain
-stop_soc = 85.0                 # stop run when SOC reaches this value
-hb_com_port = "COM5"            # Hoverboard COM port
-hb_baud_rate = 115200           # Hoverboard baud rate
+speed = None                    # constant speed to maintain
+stop_soc = 100.0                # stop run when SOC reaches this value
+hb_com_port = None              # Hoverboard COM port
+hb_baud_rate = None             # Hoverboard baud rate
 bms_name = "EGIKE_STATION_1"    # BMS device name
 LOG_HZ = 1                      # Logging interval (Hz)
 sample_interval = 1.0 / LOG_HZ  # seconds
@@ -66,36 +61,26 @@ stop_flag = threading.Event()
 last_hb = hb_init_sample
 last_bms = bms_init_sample
 ######################################## FUNCTIONS ########################################
-def data_logger(hoverboard, bms_reader):
+def data_logger(bms_reader):
     global last_hb, last_bms
+    hb_dict = last_hb
     while not stop_flag.is_set():
         timestamp = get_timestamp()
         time_string = get_time_string()
-
-        # Get latest hoverboard feedback
-        hb_feedback = hoverboard.get_feedback()
-        if hb_feedback is not None:
-            last_hb = hb_feedback
-        hb_dict = last_hb  # use last-known if current is None
-
         # Get latest BMS sample
         bms_sample = bms_reader.get_latest()
         if bms_sample is not None:
             last_bms = bms_sample
         bms_dict = last_bms  # use last-known if current is None
-
-        print(hb_dict)
         print(bms_dict)
-
         # Append row to HDF5
         append_row(hdf5_file, run_name, timestamp, time_string, hb_dict, bms_dict)
 
-        # Stop run if SOC <= stop_soc
-        if bms_dict and "battery_level" in bms_dict and bms_dict["battery_level"] <= stop_soc:
+        # Stop run if target SOC is reached
+        if bms_dict and "battery_level" in bms_dict and bms_dict["battery_level"] >= stop_soc:
             print(f"Reached stop SOC ({stop_soc}%), stopping run.")
             stop_flag.set()
             break
-
         time.sleep(sample_interval)
 
 ######################################## MAIN RUN ########################################
@@ -103,21 +88,14 @@ def data_logger(hoverboard, bms_reader):
 # Initialize run in HDF5
 init_run_dynamic(hdf5_file, run_name, run_metadata, hb_init_sample, bms_init_sample)
 
-# Hoverboard and BMS initialization
-hoverboard = HoverboardController(serial_port=hb_com_port, baud_rate=hb_baud_rate, print_feedback=False)
-hoverboard.start_threads()
+# BMS initialization
 bms_reader = BMSReader(device_name=bms_name)
 bms_reader.start()
-print(f"Hoverboard started on {hb_com_port} at {hb_baud_rate} baud.")
 print(f"BMS Reader started for device {bms_name}.")
 print("Starting run:", run_name)
 print("Run Description:", run_metadata["description"])
-# Ramp hoverboard to target speed
-hoverboard.ramp_speed(speed)
-print("Starting Run...")
-print(f"Hoverboard ramped to speed {speed}.")
-time.sleep(2)  # wait for hoverboard to stabilize
+time.sleep(2)
 # Start logger thread
-logger_thread = threading.Thread(target=data_logger,args=(hoverboard, bms_reader))
+logger_thread = threading.Thread(target=data_logger, args=(bms_reader,))
 logger_thread.start()
 print("Simulation will stop when BMS SOC reaches", stop_soc, "%")
