@@ -14,14 +14,15 @@ import time
 hdf5_file = "dataset/hoverboard_bms_dataset.h5"
 
 # run parameters
-run_name = "run_001"
+run_name = "run_004"
 run_metadata = {
-    "description": "Running hoverboard at a constant full speed from 100% SOC to 40% SOC.",
+    "description": "Running hoverboard at a constant 0.8 full speed from 85% SOC to 40% SOC.",
     "date": get_date_string(),
     "battery_pack": "Lithium-Ion, 41.5V, 10.2Ah",
     "battery_age": "new"
 }
-speed = 580                    # constant speed to maintain
+FULL_SPEED = 580                # full speed value for hoverboard
+speed = int(FULL_SPEED*0.8)     # constant speed to maintain
 stop_soc = 40.0                 # stop run when SOC reaches this value
 hb_com_port = "COM5"            # Hoverboard COM port
 hb_baud_rate = 115200           # Hoverboard baud rate
