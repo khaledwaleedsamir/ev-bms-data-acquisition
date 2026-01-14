@@ -11,18 +11,21 @@ import time
 ######################################## CONFIGS ########################################
 
 # HDF5 file parameters
-hdf5_file = "dataset/hoverboard_bms_dataset.h5"
+hdf5_file = "dataset/hoverboard_bms_dataset2.h5"
 
 # run parameters
-run_name = "run_004"
+run_name = "run_009_40pct_speed_30kg_load_discharge"
 run_metadata = {
-    "description": "Running hoverboard at a constant 0.8 full speed from 85% SOC to 40% SOC.",
+    "description": "Running hoverboard at 0.4 full speed with rollers resistance and 30kg load to discharge the battery.",
     "date": get_date_string(),
-    "battery_pack": "Lithium-Ion, 41.5V, 10.2Ah",
-    "battery_age": "new"
+    "battery_pack": "Lithium-Ion 10Ah",
+    "battery_age": "new",
+    "Logging rate": "1 sample/sec",
+    "Hoverboard Speed": "40% of full speed",
+    "Hoverboard Load": "30kg + rollers resistance"
 }
 FULL_SPEED = 580                # full speed value for hoverboard
-speed = int(FULL_SPEED*0.8)     # constant speed to maintain
+speed = int(FULL_SPEED*0.4)     # constant speed to maintain
 stop_soc = 40.0                 # stop run when SOC reaches this value
 hb_com_port = "COM5"            # Hoverboard COM port
 hb_baud_rate = 115200           # Hoverboard baud rate
@@ -105,16 +108,31 @@ hoverboard = HoverboardController(serial_port=hb_com_port, baud_rate=hb_baud_rat
 hoverboard.start_threads()
 bms_reader = BMSReader(device_name=bms_name)
 bms_reader.start()
+
+# Print run info
 print(f"Hoverboard started on {hb_com_port} at {hb_baud_rate} baud.")
 print(f"BMS Reader started for device {bms_name}.")
 print("Starting run:", run_name)
 print("Run Description:", run_metadata["description"])
+
+
 # Ramp hoverboard to target speed
 hoverboard.ramp_speed(speed)
 print("Starting Run...")
 print(f"Hoverboard ramped to speed {speed}.")
-time.sleep(2)  # wait for hoverboard to stabilize
+
+# Wait for BMS connection
+while bms_reader.get_latest() is None:
+    print("Waiting for BMS Bluetooth Connection...")
+    time.sleep(1)
+
 # Start logger thread
 logger_thread = threading.Thread(target=data_logger,args=(hoverboard, bms_reader))
 logger_thread.start()
 print("Simulation will stop when BMS SOC reaches", stop_soc, "%")
+
+# # stop after 2 min (for testing)
+# time.sleep(120)
+# stop_flag.set()
+# hoverboard.close()
+# bms_reader.stop()

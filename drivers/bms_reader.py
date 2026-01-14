@@ -41,7 +41,7 @@ class BMSReader:
     
     def start(self):
         self._stop_flag = False
-        self._thread = Thread(target=self.run_loop, daemon=True)
+        self._thread = Thread(target=self.run_loop)
         self._thread.start()
 
     def run_loop(self):

@@ -2,6 +2,7 @@
 /.venv
 
 # Ignore dataset .h5 file
+*.h5
 /dataset/hoverboard_bms_dataset.h5
 
 # Ignore Python cache files

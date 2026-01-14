@@ -71,6 +71,9 @@ def init_run_dynamic(hdf5_file: str, run_name: str, metadata: dict,
             raise ValueError(f"Run {run_name} already exists in {hdf5_file}")
         
         g_run = f.create_group(run_name)
+        # ---- Attach metadata as run attributes ----
+        for k, v in metadata.items():
+            g_run.attrs[k] = v
         # Shared timestamp
         g_run.create_dataset("timestamp_ms", shape=(0,), maxshape=(None,), dtype='float64')
         g_run.create_dataset("time_string", shape=(0,), maxshape=(None,), dtype=h5py.string_dtype(encoding='utf-8'))
@@ -96,9 +99,9 @@ def init_run_dynamic(hdf5_file: str, run_name: str, metadata: dict,
                 g_bms.create_dataset(key, shape=(0,), maxshape=(None,), dtype=dtype)
         
         # Metadata
-        g_meta = g_run.create_group("metadata")
-        for k, v in metadata.items():
-            g_meta.attrs[k] = v
+        # g_meta = g_run.create_group("metadata")
+        # for k, v in metadata.items():
+        #     g_meta.attrs[k] = v
     
     if file_exists:
         print(f"Run {run_name} added to existing file {hdf5_file}")
@@ -192,8 +195,18 @@ def get_date_string():
     """
     return datetime.now().strftime("%Y-%m-%d")
 
+def delete_run(hdf5_file: str, run_name: str):
+    """
+    Permanently delete a run (group) from an HDF5 file.
+    """
+    with h5py.File(hdf5_file, "a") as f:
+        if run_name not in f:
+            raise ValueError(f"Run '{run_name}' does not exist in {hdf5_file}")
 
-# ---------- Dummy Samples for testing  ----------
+        del f[run_name]
+
+    print(f"Run '{run_name}' deleted from {hdf5_file}")
+# # ---------- Dummy Samples for testing  ----------
 
 # hb_sample = {
 #     "speedR_meas": 100,
@@ -222,7 +235,7 @@ def get_date_string():
 # }
 
 # # ---------- Run metadata ----------
-# hdf5_file = "test_dataset.h5"
+# hdf5_file = "test_dataset_test.h5"
 # run_name = "run_002"
 # run_metadata = {
 #     "description": "Test run with dummy hoverboard and BMS data",

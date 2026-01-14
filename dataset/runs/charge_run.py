@@ -10,18 +10,19 @@ import time
 ######################################## CONFIGS ########################################
 
 # HDF5 file parameters
-hdf5_file = "dataset/hoverboard_bms_dataset.h5"
+hdf5_file = "dataset/hoverboard_bms_dataset2.h5"
 
 # run parameters
-run_name = "run_002"
+run_name = "run_008_charge"
 run_metadata = {
-    "description": "charging the battery from 50% to 100% SOC after run_001.",
+    "description": "charging the battery to 85% SOC after run_007.",
     "date": get_date_string(),
     "battery_pack": "Lithium-Ion, 41.5V, 10.2Ah",
-    "battery_age": "new"
+    "battery_age": "new",
+    "Logging rate": "1 sample/sec"
 }
 speed = None                    # constant speed to maintain
-stop_soc = 100.0                # stop run when SOC reaches this value
+stop_soc = 85.0                 # stop run when SOC reaches this value
 hb_com_port = None              # Hoverboard COM port
 hb_baud_rate = None             # Hoverboard baud rate
 bms_name = "EGIKE_STATION_1"    # BMS device name
@@ -94,7 +95,12 @@ bms_reader.start()
 print(f"BMS Reader started for device {bms_name}.")
 print("Starting run:", run_name)
 print("Run Description:", run_metadata["description"])
-time.sleep(2)
+
+# Wait for BMS connection
+while bms_reader.get_latest() is None:
+    print("Waiting for BMS Bluetooth Connection...")
+    time.sleep(1)
+
 # Start logger thread
 logger_thread = threading.Thread(target=data_logger, args=(bms_reader,))
 logger_thread.start()
