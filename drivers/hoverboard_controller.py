@@ -3,6 +3,7 @@ import struct
 import time
 import sys
 import threading
+import math
 
 """Hoverboard serial controller.
 """
@@ -60,8 +61,12 @@ class HoverboardController:
     
     def send_cmd(self, speed, steer):
         start = self.start_frame
+        
         # XOR-based checksum (matches hoverboard firmware)
-        checksum = start ^ steer ^ speed
+        # checksum = start ^ steer ^ speed
+
+        # XOR checksum, forced to uint16
+        checksum = (start ^ steer ^ speed) & 0xFFFF
 
         # Pack data into bytes (little-endian)
         packet = struct.pack("<HhhH", start, steer, speed, checksum)
@@ -193,3 +198,37 @@ class HoverboardController:
         self.tx_thread = None
         self.rx_thread = None
         self.print_thread = None
+
+    def sinusoidal_speed(
+        self,
+        amplitude,
+        frequency=0.02,     # Hz (1 cycle = 50s)
+        update_interval=0.05,
+        max_speed=580,
+        stop_event=None
+    ):
+        """
+        Zero-centered sinusoidal speed control.
+        Speed oscillates between -amplitude and +amplitude.
+
+        amplitude: peak speed (<= max_speed)
+        frequency: sine frequency in Hz
+        """
+
+        amplitude = min(abs(amplitude), max_speed)
+        start_time = time.time()
+
+        while True:
+            if stop_event and stop_event.is_set():
+                break
+
+            t = time.time() - start_time
+            speed_cmd = amplitude * math.sin(2 * math.pi * frequency * t)
+
+            # Clamp
+            speed_cmd = max(-max_speed, min(max_speed, speed_cmd))
+
+            with self.state_lock:
+                self.current_speed = int(speed_cmd)
+
+            time.sleep(update_interval)

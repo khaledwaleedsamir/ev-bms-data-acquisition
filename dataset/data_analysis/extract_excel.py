@@ -52,8 +52,8 @@ def h5_to_excel(h5_path, output_folder):
 
 if __name__ == "__main__":
     h5_to_excel(
-        r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\hoverboard_bms_dataset2.h5",
-        r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset"
+        r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\hoverboard_bms_demo.h5",
+        r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\demo_excels"
     )
     # Excel rows deletion
     # from openpyxl import load_workbook

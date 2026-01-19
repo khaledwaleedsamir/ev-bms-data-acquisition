@@ -22,17 +22,17 @@ import pyqtgraph as pg
 
 ######################################## CONFIGS ########################################
 
-hdf5_file = "dataset/hoverboard_bms_dataset2_test.h5"
+hdf5_file = "dataset/hoverboard_bms_demo.h5"
 
-run_name = "run_009_40pct_speed_30kg_load_discharge"
+run_name = "run_002_sudden_weight"
 run_metadata = {
-    "description": "Running hoverboard at 0.4 full speed with rollers resistance and 30kg load to discharge the battery.",
+    "description": "Running hoverboard with a constant speed with amplitude of 0.4 full speed with rollers resistance and adding weights suddenly.",
     "date": get_date_string(),
     "battery_pack": "Lithium-Ion 10Ah",
     "battery_age": "new",
     "Logging rate": "1 sample/sec",
     "Hoverboard Speed": "40% of full speed",
-    "Hoverboard Load": "30kg + rollers resistance"
+    "Hoverboard Load": "25kg + rollers resistance"
 }
 
 FULL_SPEED = 580
@@ -131,7 +131,7 @@ def data_logger(hoverboard, bms_reader):
         # ---- Speed buffer (average L/R) ----
         speed_l = last_hb.get("hb_speedL_meas", 0)
         speed_r = last_hb.get("hb_speedR_meas", 0)
-        speed_buf.append((abs(speed_l) + abs(speed_r)) / 2)
+        speed_buf.append((speed_l - speed_r) / 2)
         # ---- BMS and hoverboard temps ----
         temp_values = last_bms.get("temp_values", [0,0,0])
         bms_temp1_buf.append(temp_values[0])
@@ -173,6 +173,23 @@ print(f"BMS Reader started for device {bms_name}")
 hoverboard.ramp_speed(speed)
 print(f"Hoverboard ramped to speed {speed}")
 
+# ---- Start sinusoidal speed control ----
+# sin_stop_event = threading.Event()
+# print("Starting sinusoidal speed control...")
+
+# threading.Thread(
+#     target=hoverboard.sinusoidal_speed,
+#     kwargs=dict(
+#         amplitude=speed,       # swings from -400 to +400
+#         frequency=0.02,      # one full cycle every ~50s
+#         update_interval=0.05,
+#         max_speed=FULL_SPEED,
+#         stop_event=sin_stop_event
+#     ),
+#     daemon=True
+# ).start()
+
+
 while bms_reader.get_latest() is None:
     print("Waiting for BMS Bluetooth Connection...")
     time.sleep(1)
@@ -195,23 +212,23 @@ win = pg.GraphicsLayoutWidget(title="BMS & Hoverboard Real-Time Monitor")
 win.resize(1400, 700)
 
 # ----- Row 1 -----
-soc_plot = win.addPlot(title="SOC (%)")
+soc_plot = win.addPlot(title="SOC (%) vs Time")
 soc_plot.setLabel("left", "SOC", units="%")
 soc_plot.showGrid(x=True, y=True)
 soc_curve = soc_plot.plot(pen=pg.mkPen("b", width=2))
 soc_plot.addLine(y=stop_soc, pen=pg.mkPen("r", style=pg.QtCore.Qt.DashLine))
 
-volt_plot = win.addPlot(title="Voltage (V)")
+volt_plot = win.addPlot(title="Voltage vs Time")
 volt_plot.setLabel("left", "Voltage", units="V")
 volt_plot.showGrid(x=True, y=True)
 volt_curve = volt_plot.plot(pen=pg.mkPen("g", width=2))
 
-curr_plot = win.addPlot(title="Current (A)")
+curr_plot = win.addPlot(title="Current (A) vs Time")
 curr_plot.setLabel("left", "Current", units="A")
 curr_plot.showGrid(x=True, y=True)
 curr_curve = curr_plot.plot(pen=pg.mkPen("m", width=2))
 
-speed_plot = win.addPlot(title="Speed")
+speed_plot = win.addPlot(title="Speed (vs Time)")
 speed_plot.setLabel("left", "Speed")
 speed_plot.setLabel("bottom", "Time", units="s")
 speed_plot.showGrid(x=True, y=True)
@@ -221,22 +238,22 @@ speed_curve = speed_plot.plot(pen=pg.mkPen("k", width=2))
 win.nextRow()
 
 bms_temp1_plot = win.addPlot(title="BMS Temp 1")
-bms_temp1_plot.setLabel("left", "°C")
+bms_temp1_plot.setLabel("left", "BMS Temp 1 °C")
 bms_temp1_plot.showGrid(x=True, y=True)
 bms_temp1_curve = bms_temp1_plot.plot(pen=pg.mkPen("r", width=2))
 
 bms_temp2_plot = win.addPlot(title="BMS Temp 2")
-bms_temp2_plot.setLabel("left", "°C")
+bms_temp2_plot.setLabel("left", "BMS Temp 2 °C")
 bms_temp2_plot.showGrid(x=True, y=True)
 bms_temp2_curve = bms_temp2_plot.plot(pen=pg.mkPen("g", width=2))
 
 bms_temp3_plot = win.addPlot(title="BMS Temp 3")
-bms_temp3_plot.setLabel("left", "°C")
+bms_temp3_plot.setLabel("left", "BMS Temp 3 °C")
 bms_temp3_plot.showGrid(x=True, y=True)
 bms_temp3_curve = bms_temp3_plot.plot(pen=pg.mkPen("b", width=2))
 
 hb_board_temp_plot = win.addPlot(title="HB Board Temp")
-hb_board_temp_plot.setLabel("left", "°C")
+hb_board_temp_plot.setLabel("left", "HB Board Temp °C")
 hb_board_temp_plot.showGrid(x=True, y=True)
 hb_board_temp_curve = hb_board_temp_plot.plot(pen=pg.mkPen("k", width=2))
 
@@ -259,8 +276,13 @@ plot_timer.start(200)  # 5 Hz plot refresh
 ######################################## CLEAN EXIT ########################################
 
 def shutdown():
+    print("Shutting down...")
+
     stop_flag.set()
+    #sin_stop_event.set()
+
     hoverboard.ramp_speed(0)
+
     hoverboard.close()
     bms_reader.stop()
 

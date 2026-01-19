@@ -14,19 +14,19 @@ import time
 hdf5_file = "dataset/hoverboard_bms_dataset2.h5"
 
 # run parameters
-run_name = "run_009_40pct_speed_30kg_load_discharge"
+run_name = "run_013_80pct_speed_25kg_load_discharge"
 run_metadata = {
-    "description": "Running hoverboard at 0.4 full speed with rollers resistance and 30kg load to discharge the battery.",
+    "description": "Running hoverboard at 0.8 full speed with rollers resistance and 25kg load to discharge the battery.",
     "date": get_date_string(),
     "battery_pack": "Lithium-Ion 10Ah",
     "battery_age": "new",
     "Logging rate": "1 sample/sec",
-    "Hoverboard Speed": "40% of full speed",
-    "Hoverboard Load": "30kg + rollers resistance"
+    "Hoverboard Speed": "80% of full speed",
+    "Hoverboard Load": "25kg + rollers resistance"
 }
 FULL_SPEED = 580                # full speed value for hoverboard
-speed = int(FULL_SPEED*0.4)     # constant speed to maintain
-stop_soc = 40.0                 # stop run when SOC reaches this value
+speed = int(FULL_SPEED*0.8)     # constant speed to maintain
+stop_soc = 30.0                 # stop run when SOC reaches this value
 hb_com_port = "COM5"            # Hoverboard COM port
 hb_baud_rate = 115200           # Hoverboard baud rate
 bms_name = "EGIKE_STATION_1"    # BMS device name

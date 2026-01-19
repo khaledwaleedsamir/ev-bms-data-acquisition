@@ -13,9 +13,9 @@ import time
 hdf5_file = "dataset/hoverboard_bms_dataset2.h5"
 
 # run parameters
-run_name = "run_008_charge"
+run_name = "run_014_charge"
 run_metadata = {
-    "description": "charging the battery to 85% SOC after run_007.",
+    "description": "charging the battery to 85% SOC after run_013.",
     "date": get_date_string(),
     "battery_pack": "Lithium-Ion, 41.5V, 10.2Ah",
     "battery_age": "new",

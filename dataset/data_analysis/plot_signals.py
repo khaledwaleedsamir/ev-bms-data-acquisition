@@ -48,7 +48,7 @@ def plot_signals(df, time_col, signals, title="Plot", xlabel="Time", ylabel="Val
 
     plt.tight_layout()
 
-df = pd.read_excel(r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\new_runs_excels\run_005_charge.xlsx")
+df = pd.read_excel(r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\demo_excels\run_002_sudden_weight.xlsx")
 time_col = "timestamp" if "timestamp" in df.columns else "time"
 if "timestamp" not in df.columns:
     df["time"] = range(len(df))
