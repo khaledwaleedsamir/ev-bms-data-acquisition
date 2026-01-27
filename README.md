@@ -63,7 +63,7 @@ Each experiment is executed as a **controlled run**, with all relevant electrica
 
 ---
 
-![Figure 1: Block diagram of the developed data acquisition system](figures/data_block_diagram.png)
+![Figure 1: Block diagram of the developed data acquisition system](figures/system_diagram.png)
 
 ## Drivers
 
