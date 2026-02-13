@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-excel_file_name = "run_005_charge_new_features"
+excel_file_name = "run_001_40pct_speed_15kg_load_discharge"
 
 # cols to drop
 cols_to_drop = [
@@ -22,12 +22,12 @@ cols_to_drop = [
     "bms/cell_voltages_6",
     "bms/cell_voltages_7",
     "bms/cell_voltages_8",
-    "bms/cell_voltages_9",
-    "bms/temp_values_1",
-    "hoverboard/hb_board_temp",
-    "hoverboard/hb_measured_voltage",
-    "hoverboard/hb_speedL_meas",
-    "hoverboard/hb_speedR_meas"
+    "bms/cell_voltages_9"
+    # "bms/temp_values_1"
+    # "hoverboard/hb_board_temp",
+    # "hoverboard/hb_measured_voltage",
+    # "hoverboard/hb_speedL_meas",
+    # "hoverboard/hb_speedR_meas"
 ]
 
 # Load data
@@ -44,7 +44,12 @@ df_filtered.columns = df_filtered.columns.str.replace(r"^hoverboard/", "", regex
 # Correlation matrix
 corr_matrix = df_filtered.corr(method="pearson")
 # Print correlation matrix in console
+print("Pearson Correlation Matrix for: ", excel_file_name)
 print(corr_matrix)
+# create a text file to save the correlation matrix
+# print the matrix to a text file
+with open(fr"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\data_analysis\correlation_matrices\{excel_file_name}_correlation_matrix.txt", "w") as f:
+    f.write(corr_matrix.to_string())
 
 
 # ---- Plot ----

@@ -11,3 +11,12 @@ __pycache__/
 
 # Ignore Excel files
 *.xlsx
+
+# Ignore output correlation matrices
+/dataset/data_analysis/correlation_matrices/*.txt
+
+# Ignore demo plot python files
+/dataset/demo_excels/*.py
+
+# Ignore CSV files
+*.csv

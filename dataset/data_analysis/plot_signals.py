@@ -48,10 +48,13 @@ def plot_signals(df, time_col, signals, title="Plot", xlabel="Time", ylabel="Val
 
     plt.tight_layout()
 
-df = pd.read_excel(r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\new_runs_excel\merged_80pct_speed_25kg_load_discharge.xlsx")
-time_col = "timestamp" if "timestamp" in df.columns else "time"
-if "timestamp" not in df.columns:
-    df["time"] = range(len(df))
+df = pd.read_excel(r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\new_runs_excel\run_004_80pct_speed_15kg_load_discharge.xlsx")
+# Create time in seconds from timestamp_ms
+if "timestamp_ms" in df.columns:
+    df["time_s"] = (df["timestamp_ms"] - df["timestamp_ms"].iloc[0]) / 1000.0
+    time_col = "time_s"
+else:
+    print("No timestamp_ms column found. Using sample index as time.")
 
 # Column lists
 cell_cols = [f"bms/cell_voltages_{i}" for i in range(10)]
@@ -61,31 +64,38 @@ temp_cols = [f"bms/temp_values_{i}" for i in range(3)]
 
 plot_signals(df, time_col, "bms/voltage",
              title="Voltage vs Time",
-             ylabel="Voltage (V)")
+             ylabel="Voltage (V)",
+             xlabel="Time (s)")
 
 plot_signals(df, time_col, "bms/current",
              title="Current vs Time",
+             xlabel="Time (s)",
              ylabel="Current (A)",
              ylim=(-5, 5))
 
 plot_signals(df, time_col, "bms/battery_level",
              title="State of Charge vs Time",
+             xlabel="Time (s)",
              ylabel="SoC (%)")
 
 plot_signals(df, time_col, cell_cols,
              title="Cell Voltages Over Time (All 10 Cells)",
+             xlabel="Time (s)",
              ylabel="Voltage (V)")
 
 plot_signals(df, time_col, "hoverboard/hb_board_temp",
              title="Hoverboard Temperature vs Time",
+             xlabel="Time (s)",
              ylabel="Temperature (°C)")
 
 plot_signals(df, time_col, temp_cols,
              title="Battery Temperature Sensors Over Time",
+             xlabel="Time (s)",
              ylabel="Temperature (°C)")
 
 plot_signals(df, time_col, ["hoverboard/hb_speedR_meas", "hoverboard/hb_speedL_meas"],
              title="Hoverboard Wheel Speeds vs Time",
+             xlabel="Time (s)",
              ylabel="Speed (RPM)")
 
 plt.show()

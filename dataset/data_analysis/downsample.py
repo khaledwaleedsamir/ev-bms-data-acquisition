@@ -2,7 +2,7 @@ import pandas as pd
 
 # === LOAD ORIGINAL EXCEL FILE ===
 df = pd.read_excel(
-    r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\runs_excel\run_002.xlsx"
+    r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\new_runs_excel\run_004_80pct_speed_15kg_load_discharge.xlsx"
 )
 
 # === TIME COLUMN OR SAMPLE INDEX ===
@@ -13,11 +13,11 @@ else:
     time_col = "time"
 
 # === DOWNSAMPLE ===
-df_downsampled = df.iloc[::100, :].reset_index(drop=True)
+df_downsampled = df.iloc[::10, :].reset_index(drop=True)
 
 # === SAVE TO NEW EXCEL FILE ===
 df_downsampled.to_excel(
-    r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\runs_excel\run_002_downsampled.xlsx",
+    r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\new_runs_excel\run_004_80pct_speed_15kg_load_discharge_downsampled.xlsx",
     index=False
 )
 
