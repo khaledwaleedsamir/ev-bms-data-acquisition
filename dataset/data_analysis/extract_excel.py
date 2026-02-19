@@ -55,13 +55,3 @@ if __name__ == "__main__":
         r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\hoverboard_bms_dataset2.h5",
         r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\new_runs_excel",
     )
-    # Excel rows deletion
-    # from openpyxl import load_workbook
-    # wb = load_workbook(r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\runs_excel\run_005.xlsx")
-    # ws = wb.active
-    # rows_to_delete = [2, 3, 4]  # Excel row numbers
-
-    # for r in sorted(rows_to_delete, reverse=True):
-    #     ws.delete_rows(r)
-
-    # wb.save("output.xlsx")
