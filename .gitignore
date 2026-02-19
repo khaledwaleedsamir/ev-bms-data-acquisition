@@ -20,3 +20,6 @@ __pycache__/
 
 # Ignore CSV files
 *.csv
+
+# Ignore MLP outputs
+/soc_estimation/mlp/outputs/
