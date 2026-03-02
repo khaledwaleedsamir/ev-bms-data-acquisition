@@ -1,9 +1,8 @@
 """
-Running hoverboard at a configurable speed to discharge the battery
+Running hoverboard at a configurable speed profile to discharge the battery
 WITH real-time BMS plotting and SOC prediction using the trained MLP model.
 """
-
-from dataset.dataset_utils import (
+from dataset.dataset_utils  import (
     init_run_dynamic, append_row,
     get_timestamp, get_date_string, get_time_string
 )
@@ -26,13 +25,52 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer
 import pyqtgraph as pg
 
+# -------- Speed profile generation --------
+def run_speed_profile(hb: HoverboardController, speed_vector, hold_time=5.0, stop_event=None):
+    """
+    Runs a speed profile in a separate thread using blocking ramp_speed.
+    Each speed is ramped and then held for the remaining time.
+    """
+    for target_speed in speed_vector:
+        if stop_event and stop_event.is_set():
+            break
+        start_time = time.time()
+        # Ramp to the target speed
+        print(f"Ramping to speed {target_speed}...")
+        hb.ramp_speed(target_speed)
+        elapsed_time = time.time() - start_time
+        
+        # Hold the speed for the remaining time
+        time.sleep(max(0, hold_time - elapsed_time))
+
+speed_vector = [31, 399, 86, 481, 543, 572, 112, 77, 40, 259, 243, 368, 172, 291, 247, 298, 438, 554, 
+                406, 445, 529, 322, 365, 461, 492, 263, 46, 134, 514, 110, 322, 180, 500, 326, 260, 10, 
+                79, 119, 138, 264, 488, 438, 428, 219, 77, 376, 567, 64, 281, 200, 536, 424, 138, 399, 
+                70, 89, 25, 161, 536, 88, 289, 217, 490, 319, 563, 103, 109, 33, 220, 183, 79, 552, 209,
+                125, 572, 513, 208, 471, 392, 269, 171, 172, 544, 512, 516, 160, 524, 212, 31, 395, 183, 
+                120, 72, 571, 76, 178, 545, 388, 529, 443, 128, 286, 435, 310, 302, 250, 487, 266, 409, 
+                423, 562, 214, 68, 322, 277, 257, 339, 552, 40, 324, 227, 80, 384, 125, 402, 472, 154, 
+                470, 99, 96, 528, 40, 74, 276, 68, 319, 430, 574, 254, 379, 175, 5, 301, 326, 186, 411, 
+                123, 284, 137, 224, 477, 570, 292, 493, 523, 149, 216, 495, 138, 211, 554, 220, 567, 123,
+                293, 365, 401, 208, 566, 119, 120, 427, 12, 262, 183, 247, 215, 404, 547, 368, 11, 483, 
+                135, 398, 105, 484, 74, 365, 81, 524, 335, 566, 346, 279, 272, 228, 214, 151, 549, 511, 
+                216, 28, 75, 321, 152, 533, 8, 495, 171, 376, 523, 62, 364, 387, 324, 309, 457, 235, 384,
+                430, 166, 251, 383, 219, 563, 170, 559, 420, 141, 511, 432, 226, 475, 246, 228, 434, 102, 
+                263, 448, 398, 409, 108, 450, 438, 553, 94, 301, 402, 114, 366, 215, 565, 126, 159, 449, 
+                482, 320, 376, 468, 251, 61, 48, 275, 558, 432, 372, 347, 267, 184, 538, 430, 424, 229, 
+                442, 110, 32, 434, 515, 346, 374, 425, 469, 136, 475, 486, 502, 385, 567, 430, 315, 273, 
+                326, 383, 539, 20, 519, 398, 201, 0, 300, 198, 82, 149, 348, 358, 138, 357, 522, 73, 284, 
+                502, 41, 326, 21, 501, 408, 451, 49, 307, 445, 492, 45, 486, 455, 83, 535, 421, 41, 490, 
+                504, 29, 529, 39, 580, 104, 195, 550, 493, 519, 113, 271, 151, 255, 11, 403, 473, 204, 
+                518, 266, 24, 575, 21, 425, 311, 481, 168, 391, 263, 139, 425]
+
 ######################################## CONFIGS ########################################
 hdf5_file = "dataset/hoverboard_bms_prediction.h5"
-run_type = "charge" # "discharge" or "charge"
-run_name = "run_004_prediction"
+run_type = "discharge" # "discharge" or "charge"
+run_name = "run_003_speed_profile_1"
 
 run_metadata = {
-    "description": "Testing SOC prediction accuracy of the MLP model in charging.",
+    "description": "Testing SOC prediction accuracy of the MLP model in discharge on a speed profile.",
     "date": get_date_string(),
     "battery_pack": "Lithium-Ion 10Ah",
     "battery_age": "new",
@@ -137,10 +175,6 @@ def data_logger(hoverboard, bms_reader):
             np.mean(last_bms.get("temp_values", [0,0,0])),
             last_bms.get("cycle_charge", 0)
         ]
-        
-        print("Input type:", type(data_for_mlp))
-        print("Input values:", [f"{x:.10f}" for x in data_for_mlp])
-
         predicted_soc = mlp_manager.predict(data_for_mlp)[0] * 100  # Scale back to percentage
         print(last_hb)
         print(last_bms)
@@ -207,25 +241,12 @@ bms_reader.start()
 print(f"BMS Reader started for device {bms_name}")
 
 if run_type == "discharge":
-    hoverboard.ramp_speed(speed)
-    print(f"Hoverboard ramped to speed {speed}")
-
-# ---- Start sinusoidal speed control ----
-# sin_stop_event = threading.Event()
-# print("Starting sinusoidal speed control...")
-
-# threading.Thread(
-#     target=hoverboard.sinusoidal_speed,
-#     kwargs=dict(
-#         amplitude=speed,       # swings from -400 to +400
-#         frequency=0.02,      # one full cycle every ~50s
-#         update_interval=0.05,
-#         max_speed=FULL_SPEED,
-#         stop_event=sin_stop_event
-#     ),
-#     daemon=True
-# ).start()
-
+    print("Starting hoverboard speed profile thread...")
+    threading.Thread(
+        target=run_speed_profile,
+        args=(hoverboard, speed_vector, 5.0, stop_flag),
+        daemon=True
+    ).start()
 
 while bms_reader.get_latest() is None:
     print("Waiting for BMS Bluetooth Connection...")

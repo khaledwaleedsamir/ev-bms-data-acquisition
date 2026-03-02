@@ -48,7 +48,7 @@ def plot_signals(df, time_col, signals, title="Plot", xlabel="Time", ylabel="Val
 
     plt.tight_layout()
 
-df = pd.read_excel(r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\new_runs_excel\run_004_80pct_speed_15kg_load_discharge.xlsx")
+df = pd.read_excel(r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\all_data\new_runs_excel\speed_profile_1.xlsx")
 # Create time in seconds from timestamp_ms
 if "timestamp_ms" in df.columns:
     df["time_s"] = (df["timestamp_ms"] - df["timestamp_ms"].iloc[0]) / 1000.0
@@ -71,7 +71,7 @@ plot_signals(df, time_col, "bms/current",
              title="Current vs Time",
              xlabel="Time (s)",
              ylabel="Current (A)",
-             ylim=(-5, 5))
+             ylim=(-4, 0))
 
 plot_signals(df, time_col, "bms/battery_level",
              title="State of Charge vs Time",

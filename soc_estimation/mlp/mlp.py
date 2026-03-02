@@ -1,28 +1,32 @@
 import torch
 import torch.nn as nn
 import time
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_error, root_mean_squared_error, r2_score
 import numpy as np
 from tqdm import tqdm
 import copy
 import joblib
 
-class MLP(nn.Module):
+class MLP_SOC(nn.Module):
     def __init__(self, input_size=3, hidden_sizes=[64, 32, 16], output_size=1):
-        super(MLP, self).__init__()
+        super(MLP_SOC, self).__init__()
 
         layers = []
         prev_size = input_size
 
-        # Hidden layers
         for hidden_size in hidden_sizes:
-            layers.append(nn.Linear(prev_size, hidden_size, bias=True))
-            layers.append(nn.ReLU())
-            layers.append(nn.Dropout(0.2))
+            layers.extend([
+                torch.nn.Linear(prev_size, hidden_size),
+                torch.nn.ReLU(),
+                torch.nn.Dropout(0.2)
+            ])
             prev_size = hidden_size
 
         # Output layer
         layers.append(nn.Linear(prev_size, output_size))
+        
+        # Sigmoid to constrain output to [0, 1] for SOC
+        layers.append(torch.nn.Sigmoid())
 
         self.network = nn.Sequential(*layers)
 
@@ -87,6 +91,8 @@ class ModelManager:
     def validate(self, loader):
         self.model.eval()
         total_loss = 0
+        all_preds = []
+        all_targets = []
 
         with torch.no_grad():
             for X_batch, y_batch in tqdm(loader, desc="Validation", leave=False):
@@ -95,10 +101,22 @@ class ModelManager:
 
                 predictions = self.model(X_batch)
                 loss = self.criterion(predictions, y_batch)
-
                 total_loss += loss.item() * X_batch.size(0)
+                # Collect predictions and targets
+                all_preds.append(predictions.cpu().numpy())
+                all_targets.append(y_batch.cpu().numpy())
+
+        # Concatenate all batches
+        all_preds = np.concatenate(all_preds, axis=0).flatten()
+        all_targets = np.concatenate(all_targets, axis=0).flatten()
+
+        # Calculate metrics
         avg_loss = total_loss / len(loader.dataset)
-        return {"loss": avg_loss}
+        mae = mean_absolute_error(all_targets, all_preds)
+        rmse = root_mean_squared_error(all_targets, all_preds)
+        r2 = r2_score(all_targets, all_preds)
+
+        return {"loss": avg_loss, "mae": mae, "rmse": rmse, "r2": r2}
     
     def start_training(self, train_loader, val_loader, epochs=100, patience=20, save_path="best_model.pth", verbose=True):
         """
@@ -116,6 +134,15 @@ class ModelManager:
         best_model_wts = copy.deepcopy(self.model.state_dict())
         early_stop_counter = 0
         start_time = time.time()
+        
+        # Initialize history
+        self.history = {
+            "train_loss": [],
+            "val_loss": [],
+            "val_mae": [],
+            "val_rmse": [],
+            "val_r2": []
+        }
 
         for epoch in range(1, epochs + 1):
 
@@ -129,9 +156,9 @@ class ModelManager:
             # Storing History
             self.history["train_loss"].append(train_loss)
             self.history["val_loss"].append(val_loss)
-            # self.history["val_mae"].append(val_metrics["mae"])
-            # self.history["val_rmse"].append(val_metrics["rmse"])
-            # self.history["val_r2"].append(val_metrics["r2"])
+            self.history["val_mae"].append(val_metrics["mae"])
+            self.history["val_rmse"].append(val_metrics["rmse"])
+            self.history["val_r2"].append(val_metrics["r2"])
 
             # Checking for best model
             if val_loss < best_val_loss:
@@ -148,9 +175,9 @@ class ModelManager:
                     f"Epoch [{epoch}/{epochs}] | "
                     f"Train Loss: {train_loss:.6f} | "
                     f"Val Loss: {val_loss:.6f} | "
-                    # f"MAE: {val_metrics['mae']:.4f} | "
-                    # f"RMSE: {val_metrics['rmse']:.4f} | "
-                    # f"R2: {val_metrics['r2']:.4f}"
+                    f"MAE: {val_metrics['mae']:.4f} | "
+                    f"RMSE: {val_metrics['rmse']:.4f} | "
+                    f"R2: {val_metrics['r2']:.4f}"
                 )
 
             # Early Stopping check
@@ -212,13 +239,14 @@ class ModelManager:
             preds = self.model(x_tensor)          # (n_samples, 1)  or  (n_samples,)
 
         preds = preds.cpu().numpy()
+        
+        # Added Sigmoid activation in the model, so predictions should already be in [0, 1] range.
+        # # Ensure shape (n_samples, 1) for inverse_transform
+        # if preds.ndim == 1:
+        #     preds = preds.reshape(-1, 1)
 
-        # Ensure shape (n_samples, 1) for inverse_transform
-        if preds.ndim == 1:
-            preds = preds.reshape(-1, 1)
+        # # Inverse-scale predictions if a scaler is available
+        # if self.scaler_y is not None:
+        #     preds = self.scaler_y.inverse_transform(preds)
 
-        # Inverse-scale predictions if a scaler is available
-        if self.scaler_y is not None:
-            preds = self.scaler_y.inverse_transform(preds)
-
-        return preds.flatten()                    # return clean 1-D array
+        return preds.flatten()
