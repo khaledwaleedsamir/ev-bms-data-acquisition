@@ -41,7 +41,7 @@ LOG_HZ = 1
 sample_interval = 1.0 / LOG_HZ
 TEST_DURATION_SEC = 60
 
-hb_com_port = "COM5"
+hb_com_port = "COM3"
 hb_baud_rate = 115200
 bms_name = "EGIKE_STATION_1"
 

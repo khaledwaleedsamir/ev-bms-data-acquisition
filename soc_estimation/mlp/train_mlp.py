@@ -19,7 +19,7 @@ class TensorPairDataset(Dataset):
         return self.X[idx], self.y[idx]
 
 # Dataset path
-data_path = r'C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\h5_files\hoverboard_bms_dataset_combined.h5'
+data_path = r'C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\all_data\h5_files\hoverboard_bms_dataset_combined2.h5'
 # Output model and scalar save path
 save_path = r'C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\soc_estimation\mlp\outputs'
 
@@ -75,9 +75,9 @@ for run in raw_data_list:
         'SOC [-]': run['battery_level']/100,
         'Voltage [V]': run['voltage'],
         'Current [A]': run['current'],
-        'power': run['power'],
-        'cycle_capacity': run['cycle_capacity'],
-        'Capacity [Ah]': run['cycle_charge']
+        'Power [W]': run['power'],
+        'Cycle Capacity [Wh]': run['cycle_capacity'],
+        'Cycle Charge [Ah]': run['cycle_charge']
     })
 
     # Add run_name column
@@ -110,23 +110,21 @@ train_runs = [
     'file2_run_001_40pct_speed_15kg_load_discharge',
     'file2_run_002_40pct_speed_15kg_load_discharge',
     'file2_run_003_charge',
-    'file2_run_006_60pct_speed_15kg_load_discharge',
     'file2_run_009_40pct_speed_25kg_load_discharge',
     'file2_run_010_80pct_speed_25kg_load_discharge',
     'file2_run_011_80pct_speed_25kg_load_discharge',
     'file2_run_012_80pct_speed_25kg_load_discharge',
     'file2_run_013_80pct_speed_25kg_load_discharge',
     'file2_run_014_charge',
-    'file3_run_001_prediction',
-    'file3_run_002_prediction',
-    'file3_run_003_speed_profile_1'
 ]
 
 val_runs = [
     'file2_run_004_80pct_speed_15kg_load_discharge',
-    'file2_run_005_charge',
+    'file2_run_005_charge'
+    'file2_run_006_60pct_speed_15kg_load_discharge',
     'file2_run_007_60pct_speed_15kg_load_discharge',
-    'file2_run_008_charge'
+    'file2_run_008_charge',
+    'file3_run_003_speed_profile_1'
 ]
 
 train_df = bms_df[bms_df.run_name.isin(train_runs)].copy()
@@ -135,7 +133,7 @@ val_df   = bms_df[bms_df.run_name.isin(val_runs)].copy()
 print(f"Train samples: {len(train_df)}")
 print(f"Val samples:   {len(val_df)}")
 
-feature_cols = ['Voltage [V]', 'Current [A]', 'Temperature [degC]', 'Capacity [Ah]']
+feature_cols = ['Voltage [V]', 'Current [A]', 'Temperature [degC]', 'Cycle Charge [Ah]', 'Cycle Capacity [Wh]']
 target_col = 'SOC [-]'
 
 X_train = train_df[feature_cols].values
@@ -159,7 +157,7 @@ X_val_scaled = scaler_X.transform(X_val)
 y_train_scaled = y_train
 y_val_scaled = y_val
 
-joblib.dump({"scaler_X": scaler_X , "scaler_y": scaler_y}, f"{save_path}\\scalers_testtt.pkl")
+joblib.dump({"scaler_X": scaler_X , "scaler_y": scaler_y}, f"{save_path}\\scalers2.pkl")
     
 # Create datasets and dataloaders
 train_dataset = TensorPairDataset(X_train_scaled, y_train_scaled)
@@ -177,11 +175,11 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 criterion = torch.nn.MSELoss()
 mlp_manager = ModelManager(model, device=device, optimizer=optimizer, criterion=criterion)
 
-batch_size = 32
+batch_size = 64
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-history = mlp_manager.start_training(train_loader=train_loader, val_loader=val_loader, epochs=100, patience=20, save_path=f"{save_path}\\mlp_model_testtt.pth", verbose=True)
+history = mlp_manager.start_training(train_loader=train_loader, val_loader=val_loader, epochs=100, patience=20, save_path=f"{save_path}\\mlp_model2.pth", verbose=True)
 
 # plot training history
 import matplotlib.pyplot as plt
