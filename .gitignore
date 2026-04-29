@@ -23,3 +23,6 @@ __pycache__/
 
 # Ignore MLP outputs
 /soc_estimation/mlp/outputs/
+
+# Ignore Output Figures
+/output_figures/*

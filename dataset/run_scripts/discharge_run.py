@@ -11,23 +11,23 @@ import time
 ######################################## CONFIGS ########################################
 
 # HDF5 file parameters
-hdf5_file = "dataset/hoverboard_bms_dataset2.h5"
+hdf5_file = "dataset/all_data/h5_files/hoverboard_bms_dataset2.h5"
 
 # run parameters
-run_name = "run_013_80pct_speed_25kg_load_discharge"
+run_name = "run_015_80pct_speed_discharge"
 run_metadata = {
-    "description": "Running hoverboard at 0.8 full speed with rollers resistance and 25kg load to discharge the battery.",
+    "description": "Running hoverboard at 0.8 full speed with rollers resistance to discharge the battery.",
     "date": get_date_string(),
     "battery_pack": "Lithium-Ion 10Ah",
     "battery_age": "new",
     "Logging rate": "1 sample/sec",
     "Hoverboard Speed": "80% of full speed",
-    "Hoverboard Load": "25kg + rollers resistance"
+    "Hoverboard Load": "N/A"
 }
 FULL_SPEED = 580                # full speed value for hoverboard
 speed = int(FULL_SPEED*0.8)     # constant speed to maintain
 stop_soc = 30.0                 # stop run when SOC reaches this value
-hb_com_port = "COM5"            # Hoverboard COM port
+hb_com_port = "COM3"            # Hoverboard COM port
 hb_baud_rate = 115200           # Hoverboard baud rate
 bms_name = "EGIKE_STATION_1"    # BMS device name
 LOG_HZ = 1                      # Logging interval (Hz)
@@ -130,9 +130,3 @@ while bms_reader.get_latest() is None:
 logger_thread = threading.Thread(target=data_logger,args=(hoverboard, bms_reader))
 logger_thread.start()
 print("Simulation will stop when BMS SOC reaches", stop_soc, "%")
-
-# # stop after 2 min (for testing)
-# time.sleep(120)
-# stop_flag.set()
-# hoverboard.close()
-# bms_reader.stop()

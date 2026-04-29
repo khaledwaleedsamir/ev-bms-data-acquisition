@@ -10,19 +10,19 @@ import time
 ######################################## CONFIGS ########################################
 
 # HDF5 file parameters
-hdf5_file = "dataset/hoverboard_bms_dataset2.h5"
+hdf5_file = "dataset/all_data/h5_files/hoverboard_bms_dataset2.h5"
 
 # run parameters
-run_name = "run_014_charge"
+run_name = "run_019_charge"
 run_metadata = {
-    "description": "charging the battery to 85% SOC after run_013.",
+    "description": "cont. charging the battery to (CC-CV No pulse charging) 100% SOC from run_018.",
     "date": get_date_string(),
-    "battery_pack": "Lithium-Ion, 41.5V, 10.2Ah",
+    "battery_pack": "Lithium-Ion, 42V, 10.2Ah",
     "battery_age": "new",
     "Logging rate": "1 sample/sec"
 }
 speed = None                    # constant speed to maintain
-stop_soc = 85.0                 # stop run when SOC reaches this value
+stop_soc = 100.0                # stop run when SOC reaches this value
 hb_com_port = None              # Hoverboard COM port
 hb_baud_rate = None             # Hoverboard baud rate
 bms_name = "EGIKE_STATION_1"    # BMS device name
@@ -78,11 +78,11 @@ def data_logger(bms_reader):
         append_row(hdf5_file, run_name, timestamp, time_string, hb_dict, bms_dict)
 
         # Stop run if target SOC is reached
-        if bms_dict and "battery_level" in bms_dict and bms_dict["battery_level"] >= stop_soc:
-            print(f"Reached stop SOC ({stop_soc}%), stopping run.")
-            stop_flag.set()
-            break
-        time.sleep(sample_interval)
+        # if bms_dict and "battery_level" in bms_dict and bms_dict["battery_level"] >= stop_soc:
+        #     print(f"Reached stop SOC ({stop_soc}%), stopping run.")
+        #     stop_flag.set()
+        #     break
+        # time.sleep(sample_interval)
 
 ######################################## MAIN RUN ########################################
 
