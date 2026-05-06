@@ -11,11 +11,11 @@ import numpy as np
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # Output model and scalar save path
-save_path = r'C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\soc_estimation\mlp\outputs'
+save_path = r'C:\Users\KMetwally\Documents\GitHub\ev-bms-data-acquisition\soc_estimation\mlp\outputs'
 model = MLP_SOC(input_size=5, hidden_sizes=[32, 16], output_size=1)
 mlp_manager = ModelManager(model, device='cpu')
-mlp_manager.load_model_weights(f"{save_path}\\mlp_model2.pth")
-mlp_manager.load_scalers(f"{save_path}\\scalers2.pkl")
+mlp_manager.load_model_weights(f"{save_path}\\mlp_model-32-16-1.pth")
+mlp_manager.load_scalers(f"{save_path}\\scalers.pkl")
 mlp_manager.model.eval()
 # Print model summary
 summary(mlp_manager.model, input_size=(1, 5))

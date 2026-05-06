@@ -8,6 +8,7 @@ from torch.utils.data import Dataset, DataLoader, TensorDataset
 import joblib
 from torchinfo import summary
 import numpy as np
+import matplotlib.pyplot as plt
 
 class TensorPairDataset(Dataset):
     def __init__(self, X, y):
@@ -19,9 +20,9 @@ class TensorPairDataset(Dataset):
         return self.X[idx], self.y[idx]
 
 # Dataset path
-data_path = r'C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\all_data\h5_files\hoverboard_bms_dataset_combined2.h5'
+data_path = r'C:\Users\KMetwally\Documents\GitHub\ev-bms-data-acquisition\dataset\all_data\h5_files\hoverboard_bms_dataset.h5'
 # Output model and scalar save path
-save_path = r'C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\soc_estimation\mlp\outputs'
+save_path = r'C:\Users\KMetwally\Documents\GitHub\ev-bms-data-acquisition\soc_estimation\mlp\outputs'
 
 try:
     with h5py.File(data_path, 'r') as f:
@@ -67,6 +68,8 @@ with h5py.File(data_path, 'r') as f:
         raw_data_list.append(run_data)
 
 print(f"Successfully extracted data from {len(raw_data_list)} runs.")
+
+
 run_dfs = []
 for run in raw_data_list:
     # Create DataFrame for current run with scalar series
@@ -101,12 +104,47 @@ bms_df['Temperature [degC]'] = bms_df[['temp_1', 'temp_2', 'temp_3']].mean(axis=
 # Check head of the DataFrame
 print(bms_df.head())
 
+# Adding the esp csv runs to the dataframe
+# Paths to CSV files and their run names
+csv_files = [
+    (r'C:\Users\KMetwally\Documents\GitHub\ev-bms-data-acquisition\dataset\all_data\esp_run-001_discharge_80pct_speed.csv', 'esp_run-001_discharge_80pct_speed'),
+    (r'C:\Users\KMetwally\Documents\GitHub\ev-bms-data-acquisition\dataset\all_data\esp_run-002_charge.csv', 'esp_run-002_charge'),
+    (r'C:\Users\KMetwally\Documents\GitHub\ev-bms-data-acquisition\dataset\all_data\esp_run-003_discharge_80pct_speed.csv', 'esp_run-003_discharge_80pct_speed'),
+]
+
+csv_dfs = []
+for file_path, run_name in csv_files:
+    df_csv = pd.read_csv(file_path)
+
+    df_mapped = pd.DataFrame({
+        'timestamp_ms':        df_csv['esp_timestamp_ms'],
+        'SOC [-]':             df_csv['bms_soc_pct'] / 100,
+        'Voltage [V]':         df_csv['voltage_V'],
+        'Current [A]':         df_csv['current_A'],
+        'Power [W]':           df_csv['voltage_V'] * df_csv['current_A'],  # derived
+        'Cycle Capacity [Wh]': df_csv['cycle_capacity_Wh'],
+        'Cycle Charge [Ah]':   df_csv['cycle_charge_Ah'],
+        'Temperature [degC]':  df_csv['temperature_degC'],
+        'run_name':            run_name,
+        # No temp_1/2/3 split available, fill with the single temperature
+        'temp_1':              df_csv['temperature_degC'],
+        'temp_2':              df_csv['temperature_degC'],
+        'temp_3':              df_csv['temperature_degC'],
+    })
+
+    csv_dfs.append(df_mapped)
+    print(f"Loaded '{run_name}': {len(df_mapped)} rows")
+
+# Append to the existing bms_df
+bms_df = pd.concat([bms_df] + csv_dfs, ignore_index=True)
+print(f"Updated DataFrame shape: {bms_df.shape}")
+print(f"All runs: {bms_df['run_name'].unique()}")
+
+
 train_runs = [
     'file1_run_001',
     'file1_run_002',
     'file1_run_003',
-    'file1_run_004',
-    'file1_run_005',
     'file2_run_001_40pct_speed_15kg_load_discharge',
     'file2_run_002_40pct_speed_15kg_load_discharge',
     'file2_run_003_charge',
@@ -116,22 +154,36 @@ train_runs = [
     'file2_run_012_80pct_speed_25kg_load_discharge',
     'file2_run_013_80pct_speed_25kg_load_discharge',
     'file2_run_014_charge',
+    'file2_run_016_charge',
+    'file2_run_017_charge',
+    'file2_run_018_charge',
+    'esp_run-001_discharge_80pct_speed',
+    'esp_run-002_charge'
 ]
 
 val_runs = [
+    'file1_run_004',
+    'file1_run_005',
     'file2_run_004_80pct_speed_15kg_load_discharge',
-    'file2_run_005_charge'
+    'file2_run_005_charge',
     'file2_run_006_60pct_speed_15kg_load_discharge',
     'file2_run_007_60pct_speed_15kg_load_discharge',
     'file2_run_008_charge',
     'file3_run_003_speed_profile_1'
 ]
+test_runs = [
+    'file2_run_015_80pct_speed_discharge',
+    'file2_run_018_charge',
+    'esp_run-003_discharge_80pct_speed'
+]
 
 train_df = bms_df[bms_df.run_name.isin(train_runs)].copy()
 val_df   = bms_df[bms_df.run_name.isin(val_runs)].copy()
-
+test_df  = bms_df[bms_df.run_name.isin(test_runs)].copy()
 print(f"Train samples: {len(train_df)}")
 print(f"Val samples:   {len(val_df)}")
+print(f"Test samples:  {len(test_df)}")
+
 
 feature_cols = ['Voltage [V]', 'Current [A]', 'Temperature [degC]', 'Cycle Charge [Ah]', 'Cycle Capacity [Wh]']
 target_col = 'SOC [-]'
@@ -142,8 +194,12 @@ y_train = train_df[target_col].values.reshape(-1, 1)
 X_val = val_df[feature_cols].values
 y_val = val_df[target_col].values.reshape(-1, 1)
 
+X_test = test_df[feature_cols].values
+y_test = test_df[target_col].values.reshape(-1, 1)
+
 print("Length of train data: ", len(X_train))
 print("Length of val data: ", len(X_val))
+print("Length of test data: ", len(X_test))
 
 num_ip_features = len(feature_cols)
 
@@ -153,19 +209,25 @@ scaler_y = StandardScaler()
 
 X_train_scaled = scaler_X.fit_transform(X_train)
 X_val_scaled = scaler_X.transform(X_val)
+X_test_scaled = scaler_X.transform(X_test)
 
 y_train_scaled = y_train
 y_val_scaled = y_val
+y_test_scaled = y_test
 
-joblib.dump({"scaler_X": scaler_X , "scaler_y": scaler_y}, f"{save_path}\\scalers2.pkl")
+joblib.dump({"scaler_X": scaler_X , "scaler_y": scaler_y}, f"{save_path}\\scalers.pkl")
+
+# Create device
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f"Using device: {device}")
     
 # Create datasets and dataloaders
 train_dataset = TensorPairDataset(X_train_scaled, y_train_scaled)
 val_dataset = TensorPairDataset(X_val_scaled, y_val_scaled)
+test_dataset = TensorPairDataset(X_test_scaled, y_test_scaled)
 
 # Create MLP model
-device = 'cpu'
-model = MLP_SOC(input_size=num_ip_features, hidden_sizes=[32, 16], output_size=1)
+model = MLP_SOC(input_size=num_ip_features, hidden_sizes=[32, 16], output_size=1).to(device)
 
 # print model summary
 summary(model, input_size=(1, num_ip_features))
@@ -175,14 +237,22 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 criterion = torch.nn.MSELoss()
 mlp_manager = ModelManager(model, device=device, optimizer=optimizer, criterion=criterion)
 
-batch_size = 64
+batch_size = 128
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-history = mlp_manager.start_training(train_loader=train_loader, val_loader=val_loader, epochs=100, patience=20, save_path=f"{save_path}\\mlp_model2.pth", verbose=True)
+history = mlp_manager.start_training(train_loader=train_loader, val_loader=val_loader, epochs=200, patience=20, save_path=f"{save_path}\\mlp_model-32-16-1.pth", verbose=True)
+
+# Evaluate on test set
+test_metrics = mlp_manager.validate(test_loader)
+print(f"\n--- Test Set Evaluation ---")
+print(f"  Loss:  {test_metrics['loss']:.6f}")
+print(f"  MAE:   {test_metrics['mae']:.4f}")
+print(f"  RMSE:  {test_metrics['rmse']:.4f}")
+print(f"  R²:    {test_metrics['r2']:.4f}")
 
 # plot training history
-import matplotlib.pyplot as plt
 plt.figure(figsize=(10, 5))
 plt.plot(history['train_loss'], label='Train Loss')
 plt.plot(history['val_loss'], label='Val Loss')
