@@ -65,7 +65,8 @@ class ModelManager:
 
     def load_model_weights(self, path):
         try:
-            self.model.load_state_dict(torch.load(path, map_location=self.device))
+            self.model.load_state_dict(torch.load(path, map_location=torch.device(self.device)))
+            self.model = self.model.to(self.device)
             print(f"Model weights loaded successfully from {path}")
         except Exception as e:
             print(f"Error loading model weights from {path}: {e}")
@@ -232,8 +233,8 @@ class ModelManager:
         if self.scaler_X is not None:
             x = self.scaler_X.transform(x)
 
-        # Inference
-        x_tensor = torch.tensor(x, dtype=torch.float32).to(self.device)
+        model_device = next(self.model.parameters()).device
+        x_tensor = torch.tensor(x, dtype=torch.float32).to(model_device)
 
         with torch.no_grad():
             preds = self.model(x_tensor)          # (n_samples, 1)  or  (n_samples,)

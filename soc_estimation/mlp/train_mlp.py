@@ -185,7 +185,7 @@ print(f"Val samples:   {len(val_df)}")
 print(f"Test samples:  {len(test_df)}")
 
 
-feature_cols = ['Voltage [V]', 'Current [A]', 'Temperature [degC]', 'Cycle Charge [Ah]', 'Cycle Capacity [Wh]']
+feature_cols = ['Voltage [V]', 'Current [A]', 'Temperature [degC]']
 target_col = 'SOC [-]'
 
 X_train = train_df[feature_cols].values
@@ -215,7 +215,7 @@ y_train_scaled = y_train
 y_val_scaled = y_val
 y_test_scaled = y_test
 
-joblib.dump({"scaler_X": scaler_X , "scaler_y": scaler_y}, f"{save_path}\\scalers.pkl")
+joblib.dump({"scaler_X": scaler_X , "scaler_y": scaler_y}, f"{save_path}\\scalers_3_features.pkl")
 
 # Create device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -227,7 +227,7 @@ val_dataset = TensorPairDataset(X_val_scaled, y_val_scaled)
 test_dataset = TensorPairDataset(X_test_scaled, y_test_scaled)
 
 # Create MLP model
-model = MLP_SOC(input_size=num_ip_features, hidden_sizes=[32, 16], output_size=1).to(device)
+model = MLP_SOC(input_size=num_ip_features, hidden_sizes=[64, 32, 16], output_size=1).to(device)
 
 # print model summary
 summary(model, input_size=(1, num_ip_features))
@@ -237,12 +237,12 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 criterion = torch.nn.MSELoss()
 mlp_manager = ModelManager(model, device=device, optimizer=optimizer, criterion=criterion)
 
-batch_size = 128
+batch_size = 64
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-history = mlp_manager.start_training(train_loader=train_loader, val_loader=val_loader, epochs=200, patience=20, save_path=f"{save_path}\\mlp_model-32-16-1.pth", verbose=True)
+history = mlp_manager.start_training(train_loader=train_loader, val_loader=val_loader, epochs=200, patience=20, save_path=f"{save_path}\\mlp_model_3_features-64-32-16-1.pth", verbose=True)
 
 # Evaluate on test set
 test_metrics = mlp_manager.validate(test_loader)

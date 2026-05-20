@@ -24,5 +24,8 @@ __pycache__/
 # Ignore MLP outputs
 /soc_estimation/mlp/outputs/
 
+# Ignore AutoML outputs
+/soc_estimation/benchmark/outputs/
+
 # Ignore Output Figures
 /output_figures/*
