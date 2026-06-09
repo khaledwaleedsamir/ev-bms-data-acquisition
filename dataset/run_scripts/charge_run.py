@@ -10,19 +10,19 @@ import time
 ######################################## CONFIGS ########################################
 
 # HDF5 file parameters
-hdf5_file = "dataset/all_data/h5_files/hoverboard_bms_dataset2.h5"
+hdf5_file = "dataset/all_data/h5_files/hoverboard_bms_HPPC_data.h5"
 
 # run parameters
-run_name = "run_019_charge"
+run_name = "run_full_charge"
 run_metadata = {
-    "description": "cont. charging the battery to (CC-CV No pulse charging) 100% SOC from run_018.",
+    "description": "cont. charging the battery to 100% SOC after running full HPPC test.",
     "date": get_date_string(),
     "battery_pack": "Lithium-Ion, 42V, 10.2Ah",
     "battery_age": "new",
     "Logging rate": "1 sample/sec"
 }
 speed = None                    # constant speed to maintain
-stop_soc = 100.0                # stop run when SOC reaches this value
+stop_soc = 101.0                # stop run when SOC reaches this value
 hb_com_port = None              # Hoverboard COM port
 hb_baud_rate = None             # Hoverboard baud rate
 bms_name = "EGIKE_STATION_1"    # BMS device name

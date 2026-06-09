@@ -3,14 +3,13 @@ import h5py
 import numpy as np
 import pandas as pd
 
-INPUT_FILE = r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\all_data\h5_files\hoverboard_bms_dataset2.h5"  # <-- change this to your file path
+INPUT_FILE = r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\all_data\h5_files\hoverboard_bms_dataset2.h5"
 OUTPUT_DIR = r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\all_data\csv"
 
 RUNS = [
     "run_016_charge",
     "run_017_charge",
-    "run_018_charge",
-    "run_019_charge",
+    "run_018_charge"
 ]
 
 
