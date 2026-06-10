@@ -29,3 +29,6 @@ __pycache__/
 
 # Ignore Output Figures
 /output_figures/*
+
+# Ignore panasonic dataset files
+dataset/Panasonic 18650PF Data/
