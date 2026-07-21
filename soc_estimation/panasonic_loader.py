@@ -51,17 +51,23 @@ def load_mat_file(path, temperature_c):
 
     soc = np.clip(1.0 + ah / C_NOMINAL_AH, 0.0, 1.0).astype(np.float32)
 
+    # Cumulative energy (Wh): integrate V * I * dt
+    dt = np.diff(time_s, prepend=time_s[0]).astype(np.float32)
+    wh = np.cumsum(voltage * current * dt / 3600.0).astype(np.float32)
+
     fname = os.path.basename(path)
     return pd.DataFrame({
-        'Voltage [V]':        voltage,
-        'Current [A]':        current,
-        'Temperature [degC]': temp,
-        'Ah':                 ah,
-        'Time [s]':           time_s,
-        'SOC [-]':            soc,
-        'nominal_temp_degC':  temperature_c,
-        'source_file':        fname,
-        'cycle_type':         _get_cycle_type(fname) or 'unknown',
+        'Voltage [V]':           voltage,
+        'Current [A]':           current,
+        'Temperature [degC]':    temp,
+        'Cycle Charge [Ah]':     ah,
+        'Cycle Capacity [Wh]':   wh,
+        'Ah':                    ah,       # kept for backward compatibility
+        'Time [s]':              time_s,
+        'SOC [-]':               soc,
+        'nominal_temp_degC':     temperature_c,
+        'source_file':           fname,
+        'cycle_type':            _get_cycle_type(fname) or 'unknown',
     })
 
 

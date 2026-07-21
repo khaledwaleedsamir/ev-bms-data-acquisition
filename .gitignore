@@ -32,3 +32,6 @@ __pycache__/
 
 # Ignore panasonic dataset files
 dataset/Panasonic 18650PF Data/
+
+# Ignore lstm outputs
+/soc_estimation/lstm/outputs/

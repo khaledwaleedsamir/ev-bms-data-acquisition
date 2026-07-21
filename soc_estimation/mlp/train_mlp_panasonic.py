@@ -33,10 +33,11 @@ PANASONIC_ROOT = r'dataset\Panasonic 18650PF Data'
 SAVE_DIR       = r'soc_estimation\mlp\outputs'
 MODEL_NAME     = 'mlp_panasonic'
 
-FEATURE_COLS  = ['Voltage [V]', 'Current [A]', 'Temperature [degC]']
+FEATURE_COLS  = ['Voltage [V]', 'Current [A]', 'Temperature [degC]',
+                 'Cycle Charge [Ah]', 'Cycle Capacity [Wh]']
 TARGET_COL    = 'SOC [-]'
 
-HIDDEN_SIZES  = [64, 32, 16]
+HIDDEN_SIZES  = [128, 64, 32, 16]
 BATCH_SIZE    = 256
 EPOCHS        = 200
 PATIENCE      = 20
@@ -91,7 +92,7 @@ test_loader  = DataLoader(_PairDataset(X_test_s,  y_test),  batch_size=BATCH_SIZ
 
 # ── 5. Model + manager ────────────────────────────────────────────────────────
 device    = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model     = MLP_SOC(input_size=len(FEATURE_COLS), hidden_sizes=HIDDEN_SIZES, output_size=1)
+model     = MLP_SOC(input_size=len(FEATURE_COLS), hidden_sizes=HIDDEN_SIZES, output_size=1)  # input_size=5
 optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 criterion = torch.nn.MSELoss()
 manager   = ModelManager(model, device=device, optimizer=optimizer, criterion=criterion)

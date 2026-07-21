@@ -1,117 +1,140 @@
-import torch
-from soc_estimation.mlp.mlp import MLP_SOC, ModelManager
-from soc_estimation.dataset_manager import DatasetManager
-from sklearn.preprocessing import StandardScaler
-import h5py
-import pandas as pd
-from torch.utils.data import Dataset, DataLoader, TensorDataset
-import joblib
-from torchinfo import summary
+"""
+Evaluate the BMS-trained MLP on the held-out test runs.
+
+Loads mlp_bms.pth + mlp_bms_scalers.pkl, runs inference on each test run,
+and reports per-run MAE / RMSE / R² plus an overall summary.
+
+Run from the repository root:
+  python -m soc_estimation.mlp.test_mlp
+"""
+
+import os
 import numpy as np
+import pandas as pd
+import h5py
+import joblib
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# Output model and scalar save path
-save_path = r'C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\soc_estimation\mlp\outputs'
-model = MLP_SOC(input_size=5, hidden_sizes=[32, 16], output_size=1)
-mlp_manager = ModelManager(model, device='cpu')
-mlp_manager.load_model_weights(f"{save_path}\\mlp_model2.pth")
-mlp_manager.load_scalers(f"{save_path}\\scalers2.pkl")
-mlp_manager.model.eval()
-# Print model summary
-summary(mlp_manager.model, input_size=(1, 5))
+from soc_estimation.mlp.mlp import MLP_SOC, ModelManager
 
-# Load the dataset
-hdf5_file = r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\all_data\h5_files\hoverboard_bms_dataset.h5"
-run_name = "/run_002"
+# ──────────────────────────── CONFIG ─────────────────────────────────────────
+HDF5_PATH  = r'dataset\all_data\h5_files\hoverboard_bms_dataset.h5'
+SAVE_DIR   = r'soc_estimation\mlp\outputs'
+MODEL_NAME = 'mlp_bms'
 
-bms_samples = []
-all_true_soc = []
-all_predicted_soc = []
-all_input_features = []
+FEATURE_COLS = ['Voltage [V]', 'Current [A]', 'Temperature [degC]',
+                'Cycle Charge [Ah]', 'Cycle Capacity [Wh]']
+TARGET_COL   = 'SOC [-]'
 
-with h5py.File(hdf5_file, "r") as f:
-    g_run = f[run_name]["bms"]  
+N_SERIES   = 10
+N_PARALLEL =  3
 
-    # get dataset lengths
-    n_samples = g_run["battery_level"].shape[0]
+HIDDEN_SIZES = [128, 64, 32]
 
-    # iterate sample by sample
-    for i in range(n_samples):
-        sample = {
-            "battery_charging": bool(g_run["battery_charging"][i]),
-            "battery_level": float(g_run["battery_level"][i]),
-            "voltage": float(g_run["voltage"][i]),
-            "current": float(g_run["current"][i]),
-            "cycle_charge": (g_run["cycle_charge"][i]),
-            "temp_sensors": int(g_run["temp_sensors"][i]),
-            "temp_values": g_run["temp_values"][i].tolist(),
-            "power": float(g_run["power"][i]),
-            "cycle_capacity": float(g_run["cycle_capacity"][i]),
-            "cycles": float(g_run["cycles"][i]),
-            "delta_voltage": float(g_run["delta_voltage"][i]),
-            "temperature": float(g_run["temperature"][i]),
-            "cell_count": int(g_run["cell_count"][i]),
-            "cell_voltages": g_run["cell_voltages"][i].tolist()
-        }
-        bms_samples.append(sample)
-        data_for_mlp = [
-            sample.get("voltage", 0.0),
-            sample.get("current", 0.0),
-            np.mean(sample.get("temp_values", [0,0,0])),
-            sample.get("cycle_charge", 0),
-            sample.get("cycle_capacity", 0.0)
-        ]
-        predicted_soc = mlp_manager.predict(data_for_mlp)[0] * 100  # Scale back to percentage
-        all_predicted_soc.append(predicted_soc)
-        all_true_soc.append(sample.get("battery_level", 0.0))
-        all_input_features.append(data_for_mlp)
+TEST_RUNS = [
+    'file2_run_013_80pct_speed_25kg_load_discharge',
+    'file2_run_015_80pct_speed_discharge',
+    'file3_run_002_prediction',
+]
+# ─────────────────────────────────────────────────────────────────────────────
+
+model_path  = os.path.join(SAVE_DIR, f'{MODEL_NAME}.pth')
+scaler_path = os.path.join(SAVE_DIR, f'{MODEL_NAME}_scalers.pkl')
+
+# ── Load model ────────────────────────────────────────────────────────────────
+model   = MLP_SOC(input_size=len(FEATURE_COLS), hidden_sizes=HIDDEN_SIZES, output_size=1)
+manager = ModelManager(model, device='cpu')
+manager.load_model_weights(model_path)
+scalers = joblib.load(scaler_path)
+manager.scaler_X = scalers['scaler_X']
+manager.model.eval()
 
 
+# ── Load test runs ────────────────────────────────────────────────────────────
+run_dfs = []
+with h5py.File(HDF5_PATH, 'r') as f:
+    for run_name in TEST_RUNS:
+        if run_name not in f:
+            print(f"[WARNING] Run not found in HDF5, skipping: {run_name}")
+            continue
+        g         = f[run_name]['bms']
+        ts_ms     = f[run_name]['timestamp_ms'][:].astype(np.float64)
+        temp_vals = g['temp_values'][:]
+        voltage   = g['voltage'][:].astype(np.float32)
+        current   = g['current'][:].astype(np.float32)
 
-# calculate metrics
-mae = mean_absolute_error(all_true_soc, all_predicted_soc)
-mse = mean_squared_error(all_true_soc, all_predicted_soc)
-r2 = r2_score(all_true_soc, all_predicted_soc)
-print(f"MAE: {mae:.2f}%")
-print(f"MSE: {mse:.2f}")
-print(f"R² Score: {r2:.4f}")
+        dt_s              = np.diff(ts_ms / 1000.0, prepend=ts_ms[0] / 1000.0).astype(np.float32)
+        cycle_charge_ah   = np.cumsum(current * dt_s / 3600.0)
+        cycle_capacity_wh = np.cumsum(voltage * current * dt_s / 3600.0)
 
-# Plot true vs predicted SOC
-import matplotlib.pyplot as plt
-# Set figure size and style
-plt.figure(figsize=(10, 6))
+        run_dfs.append(pd.DataFrame({
+            'Voltage [V]':         voltage                                    / N_SERIES,
+            'Current [A]':         current                                    / N_PARALLEL,
+            'Temperature [degC]':  temp_vals.mean(axis=1).astype(np.float32),
+            'Cycle Charge [Ah]':   cycle_charge_ah,
+            'Cycle Capacity [Wh]': cycle_capacity_wh,
+            'SOC [-]':             g['battery_level'][:].astype(np.float32)  / 100.0,
+            'run_name':            run_name,
+        }))
 
-# Plot true vs predicted SOC
-plt.plot(all_true_soc, label='True SOC', linestyle='-', color='blue', linewidth=1)
-plt.plot(all_predicted_soc, label='Predicted SOC', linestyle='--', color='red', linewidth=1)
+print(f"Loaded {len(run_dfs)} test runs")
 
-# Titles and labels
-plt.title('True vs Predicted SOC', fontsize=16, fontweight='bold')
-plt.xlabel('Sample Index', fontsize=14)
-plt.ylabel('SOC (%)', fontsize=14)
 
-# Legend
-plt.legend(fontsize=12)
-plt.grid(True, which='both', linestyle='--', linewidth=0.5)
-plt.minorticks_on()  # adds minor ticks
+# ── Per-run inference + metrics ───────────────────────────────────────────────
+per_run_metrics = []
+fig, axes = plt.subplots(len(run_dfs), 1, figsize=(12, 3.5 * len(run_dfs)), squeeze=False)
 
-# Optional: tighten layout for papers
+for ax, run_df in zip(axes[:, 0], run_dfs):
+    run_name = run_df['run_name'].iloc[0]
+    X_scaled = manager.scaler_X.transform(run_df[FEATURE_COLS].values.astype(np.float32))
+
+    manager.scaler_X = None
+    y_pred = manager.predict(X_scaled)
+    manager.scaler_X = scalers['scaler_X']
+
+    y_true = run_df[TARGET_COL].values
+    mae  = mean_absolute_error(y_true, y_pred)
+    rmse = mean_squared_error(y_true, y_pred) ** 0.5
+    r2   = r2_score(y_true, y_pred)
+    per_run_metrics.append({'run': run_name, 'MAE_%': mae*100, 'RMSE_%': rmse*100, 'R2': r2})
+
+    ax.plot(y_true * 100, label='True SOC (BMS)',  color='steelblue',  lw=1.2)
+    ax.plot(y_pred * 100, label='Predicted SOC',    color='orangered', lw=1.2, linestyle='--')
+    ax.set_title(f'{run_name}   MAE={mae*100:.1f}%  RMSE={rmse*100:.1f}%  R²={r2:.3f}', fontsize=9)
+    ax.set_ylabel('SOC (%)')
+    ax.legend(fontsize=8)
+    ax.grid(True, lw=0.4)
+
+axes[-1, 0].set_xlabel('Sample index')
+plt.suptitle(f'BMS MLP {HIDDEN_SIZES} — Test Results', fontsize=11, y=1.01)
 plt.tight_layout()
+plot_path = os.path.join(SAVE_DIR, f'{MODEL_NAME}_test_results.png')
+plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+print(f"Plot saved → {plot_path}")
 
-# Show plot
-plt.show()
 
-input_features_df = pd.DataFrame(all_input_features, columns=[
-    "Voltage",
-    "Current",
-    "Temp_Mean",
-    "Cycle_Charge",
-    "Cycle_Capacity"
-])
-df_results = pd.DataFrame({
-    "Actual_SOC": all_true_soc,
-    "Predicted_SOC": all_predicted_soc
-})
-df_results = pd.concat([df_results, input_features_df], axis=1)
-df_results.to_csv(r"C:\Users\assas\Desktop\NU\Experimental Setup\ev-bms-data-acquisition\dataset\all_data\csv_files\test6_pred.csv", index=False)
+# ── Summary ───────────────────────────────────────────────────────────────────
+metrics_df = pd.DataFrame(per_run_metrics)
+print("\n" + "=" * 60)
+print("Per-run metrics")
+print("=" * 60)
+print(metrics_df.to_string(index=False, float_format=lambda x: f'{x:.2f}'))
 
+full_test_df = pd.concat(run_dfs, ignore_index=True)
+X_all = manager.scaler_X.transform(full_test_df[FEATURE_COLS].values.astype(np.float32))
+manager.scaler_X = None
+y_all_pred = manager.predict(X_all)
+manager.scaler_X = scalers['scaler_X']
+y_all_true = full_test_df[TARGET_COL].values
+
+print(f"\n--- Overall ---")
+print(f"  MAE  : {mean_absolute_error(y_all_true, y_all_pred)*100:.2f} %")
+print(f"  RMSE : {mean_squared_error(y_all_true, y_all_pred)**0.5*100:.2f} %")
+print(f"  R²   : {r2_score(y_all_true, y_all_pred):.4f}")
+
+csv_path = os.path.join(SAVE_DIR, f'{MODEL_NAME}_test_metrics.csv')
+metrics_df.to_csv(csv_path, index=False)
+print(f"Metrics CSV saved → {csv_path}")

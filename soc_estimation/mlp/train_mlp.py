@@ -1,147 +1,62 @@
-import torch
-from soc_estimation.mlp.mlp import MLP_SOC, ModelManager
-from soc_estimation.dataset_manager import DatasetManager
-from sklearn.preprocessing import StandardScaler
-import h5py
-import pandas as pd
-from torch.utils.data import Dataset, DataLoader, TensorDataset
-import joblib
-from torchinfo import summary
+"""
+Train MLP SOC model directly on the collected BMS dataset (no transfer learning).
+
+Features (all computed from raw sensor data)
+--------------------------------------------
+  Voltage [V]          pack voltage / N_SERIES   (per-cell)
+  Current [A]          pack current / N_PARALLEL  (per-cell)
+  Temperature [degC]   mean of 3 BMS temp sensors
+  Cycle Charge [Ah]    Coulomb-counted Ah since run start  (resets each run)
+  Cycle Capacity [Wh]  Energy-counted Wh since run start   (resets each run)
+
+Split (run-based, no data leakage)
+-----------------------------------
+  Train : file1 + file2 majority runs
+  Val   : held-out file1/file2 runs + speed profile
+  Test  : file2_run_013, file2_run_015, file3_run_002  (unseen conditions)
+
+Outputs (saved to soc_estimation/mlp/outputs/)
+  mlp_bms.pth
+  mlp_bms_scalers.pkl
+  mlp_bms_training_curve.png
+
+Run from the repository root:
+  python -m soc_estimation.mlp.train_mlp
+"""
+
+import os
 import numpy as np
+import pandas as pd
+import h5py
+import torch
+import joblib
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from torch.utils.data import Dataset, DataLoader
 
-class TensorPairDataset(Dataset):
-    def __init__(self, X, y):
-        self.X = torch.FloatTensor(X)
-        self.y = torch.FloatTensor(y)
-    def __len__(self):
-        return len(self.X)
-    def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
+from soc_estimation.mlp.mlp import MLP_SOC, ModelManager
 
-# Dataset path
-data_path = r'C:\Users\KMetwally\Documents\GitHub\ev-bms-data-acquisition\dataset\all_data\h5_files\hoverboard_bms_dataset.h5'
-# Output model and scalar save path
-save_path = r'C:\Users\KMetwally\Documents\GitHub\ev-bms-data-acquisition\soc_estimation\mlp\outputs'
+# ──────────────────────────── CONFIG ─────────────────────────────────────────
+HDF5_PATH    = r'dataset\all_data\h5_files\hoverboard_bms_dataset.h5'
+SAVE_DIR     = r'soc_estimation\mlp\outputs'
+MODEL_NAME   = 'mlp_bms'
 
-try:
-    with h5py.File(data_path, 'r') as f:
-        # List all groups
-        print("Keys in the h5 file:", list(f.keys()))
-except Exception as e:
-    print(f"Error loading file: {e}")
+FEATURE_COLS = ['Voltage [V]', 'Current [A]', 'Temperature [degC]',
+                'Cycle Charge [Ah]', 'Cycle Capacity [Wh]']
+TARGET_COL   = 'SOC [-]'
 
-raw_data_list = []
+N_SERIES   = 10
+N_PARALLEL =  3
 
-# Open the HDF5 file
-with h5py.File(data_path, 'r') as f:
-    for run_name in f.keys():
-        run_group = f[run_name]
+HIDDEN_SIZES = [128, 64, 32]
+BATCH_SIZE   = 256
+EPOCHS       = 200
+PATIENCE     = 20
+LR           = 1e-3
 
-        # Access bms group and extract specific datasets as numpy arrays
-        bms_group = run_group['bms']
-        battery_level = bms_group['battery_level'][:]
-        temp_values = bms_group['temp_values'][:]
-        voltage = bms_group['voltage'][:]
-        current = bms_group['current'][:]
-        power = bms_group['power'][:]
-        cycle_capacity = bms_group['cycle_capacity'][:]
-        cycle_charge = bms_group['cycle_charge'][:]
-
-        # Extract 'timestamp_ms' from the run group top level
-        timestamp_ms = run_group['timestamp_ms'][:]
-
-        # Store extracted arrays and metadata in a dictionary
-        run_data = {
-            'run_name': run_name,
-            'battery_level': battery_level,
-            'temp_values': temp_values,
-            'voltage': voltage,
-            'current': current,
-            'power': power,
-            'cycle_capacity': cycle_capacity,
-            'cycle_charge': cycle_charge,
-            'timestamp_ms': timestamp_ms,
-            'metadata': dict(run_group.attrs)
-        }
-
-        raw_data_list.append(run_data)
-
-print(f"Successfully extracted data from {len(raw_data_list)} runs.")
-
-
-run_dfs = []
-for run in raw_data_list:
-    # Create DataFrame for current run with scalar series
-    df = pd.DataFrame({
-        'timestamp_ms': run['timestamp_ms'],
-        'SOC [-]': run['battery_level']/100,
-        'Voltage [V]': run['voltage'],
-        'Current [A]': run['current'],
-        'Power [W]': run['power'],
-        'Cycle Capacity [Wh]': run['cycle_capacity'],
-        'Cycle Charge [Ah]': run['cycle_charge']
-    })
-
-    # Add run_name column
-    df['run_name'] = run['run_name']
-
-    # Flatten temp_values into temp_1, temp_2, temp_3
-    temp_vals = run['temp_values']
-    df['temp_1'] = temp_vals[:, 0]
-    df['temp_2'] = temp_vals[:, 1]
-    df['temp_3'] = temp_vals[:, 2]
-
-    run_dfs.append(df)
-
-# Concatenate all runs into one master DataFrame
-bms_df = pd.concat(run_dfs, ignore_index=True)
-
-# Display summary info
-print(f"Unified DataFrame shape: {bms_df.shape}")
-# Add average temperature column
-bms_df['Temperature [degC]'] = bms_df[['temp_1', 'temp_2', 'temp_3']].mean(axis=1)
-# Check head of the DataFrame
-print(bms_df.head())
-
-# Adding the esp csv runs to the dataframe
-# Paths to CSV files and their run names
-csv_files = [
-    (r'C:\Users\KMetwally\Documents\GitHub\ev-bms-data-acquisition\dataset\all_data\esp_run-001_discharge_80pct_speed.csv', 'esp_run-001_discharge_80pct_speed'),
-    (r'C:\Users\KMetwally\Documents\GitHub\ev-bms-data-acquisition\dataset\all_data\esp_run-002_charge.csv', 'esp_run-002_charge'),
-    (r'C:\Users\KMetwally\Documents\GitHub\ev-bms-data-acquisition\dataset\all_data\esp_run-003_discharge_80pct_speed.csv', 'esp_run-003_discharge_80pct_speed'),
-]
-
-csv_dfs = []
-for file_path, run_name in csv_files:
-    df_csv = pd.read_csv(file_path)
-
-    df_mapped = pd.DataFrame({
-        'timestamp_ms':        df_csv['esp_timestamp_ms'],
-        'SOC [-]':             df_csv['bms_soc_pct'] / 100,
-        'Voltage [V]':         df_csv['voltage_V'],
-        'Current [A]':         df_csv['current_A'],
-        'Power [W]':           df_csv['voltage_V'] * df_csv['current_A'],  # derived
-        'Cycle Capacity [Wh]': df_csv['cycle_capacity_Wh'],
-        'Cycle Charge [Ah]':   df_csv['cycle_charge_Ah'],
-        'Temperature [degC]':  df_csv['temperature_degC'],
-        'run_name':            run_name,
-        # No temp_1/2/3 split available, fill with the single temperature
-        'temp_1':              df_csv['temperature_degC'],
-        'temp_2':              df_csv['temperature_degC'],
-        'temp_3':              df_csv['temperature_degC'],
-    })
-
-    csv_dfs.append(df_mapped)
-    print(f"Loaded '{run_name}': {len(df_mapped)} rows")
-
-# Append to the existing bms_df
-bms_df = pd.concat([bms_df] + csv_dfs, ignore_index=True)
-print(f"Updated DataFrame shape: {bms_df.shape}")
-print(f"All runs: {bms_df['run_name'].unique()}")
-
-
-train_runs = [
+TRAIN_RUNS = [
     'file1_run_001',
     'file1_run_002',
     'file1_run_003',
@@ -152,16 +67,15 @@ train_runs = [
     'file2_run_010_80pct_speed_25kg_load_discharge',
     'file2_run_011_80pct_speed_25kg_load_discharge',
     'file2_run_012_80pct_speed_25kg_load_discharge',
-    'file2_run_013_80pct_speed_25kg_load_discharge',
     'file2_run_014_charge',
     'file2_run_016_charge',
     'file2_run_017_charge',
     'file2_run_018_charge',
-    'esp_run-001_discharge_80pct_speed',
-    'esp_run-002_charge'
+    'file2_run_019_charge',
+    'file3_run_001_prediction',
 ]
 
-val_runs = [
+VAL_RUNS = [
     'file1_run_004',
     'file1_run_005',
     'file2_run_004_80pct_speed_15kg_load_discharge',
@@ -169,96 +83,145 @@ val_runs = [
     'file2_run_006_60pct_speed_15kg_load_discharge',
     'file2_run_007_60pct_speed_15kg_load_discharge',
     'file2_run_008_charge',
-    'file3_run_003_speed_profile_1'
+    'file3_run_003_speed_profile_1',
 ]
-test_runs = [
+
+TEST_RUNS = [
+    'file2_run_013_80pct_speed_25kg_load_discharge',
     'file2_run_015_80pct_speed_discharge',
-    'file2_run_018_charge',
-    'esp_run-003_discharge_80pct_speed'
+    'file3_run_002_prediction',
 ]
+# ─────────────────────────────────────────────────────────────────────────────
 
-train_df = bms_df[bms_df.run_name.isin(train_runs)].copy()
-val_df   = bms_df[bms_df.run_name.isin(val_runs)].copy()
-test_df  = bms_df[bms_df.run_name.isin(test_runs)].copy()
-print(f"Train samples: {len(train_df)}")
-print(f"Val samples:   {len(val_df)}")
-print(f"Test samples:  {len(test_df)}")
+os.makedirs(SAVE_DIR, exist_ok=True)
 
 
-feature_cols = ['Voltage [V]', 'Current [A]', 'Temperature [degC]']
-target_col = 'SOC [-]'
+# ── 1. Load HDF5 data ─────────────────────────────────────────────────────────
+print("=" * 60)
+print("Loading BMS dataset")
+print("=" * 60)
 
-X_train = train_df[feature_cols].values
-y_train = train_df[target_col].values.reshape(-1, 1)
+run_dfs = []
+with h5py.File(HDF5_PATH, 'r') as f:
+    for run_name in f.keys():
+        g         = f[run_name]['bms']
+        ts_ms     = f[run_name]['timestamp_ms'][:].astype(np.float64)
+        temp_vals = g['temp_values'][:]
+        voltage   = g['voltage'][:].astype(np.float32)
+        current   = g['current'][:].astype(np.float32)
 
-X_val = val_df[feature_cols].values
-y_val = val_df[target_col].values.reshape(-1, 1)
+        dt_s              = np.diff(ts_ms / 1000.0, prepend=ts_ms[0] / 1000.0).astype(np.float32)
+        cycle_charge_ah   = np.cumsum(current * dt_s / 3600.0)
+        cycle_capacity_wh = np.cumsum(voltage * current * dt_s / 3600.0)
 
-X_test = test_df[feature_cols].values
-y_test = test_df[target_col].values.reshape(-1, 1)
+        run_dfs.append(pd.DataFrame({
+            'Voltage [V]':         voltage,
+            'Current [A]':         current,
+            'Temperature [degC]':  temp_vals.mean(axis=1).astype(np.float32),
+            'Cycle Charge [Ah]':   cycle_charge_ah,
+            'Cycle Capacity [Wh]': cycle_capacity_wh,
+            'SOC [-]':             g['battery_level'][:].astype(np.float32)  / 100.0,
+            'run_name':            run_name,
+        }))
 
-print("Length of train data: ", len(X_train))
-print("Length of val data: ", len(X_val))
-print("Length of test data: ", len(X_test))
+full_df = pd.concat(run_dfs, ignore_index=True)
+print(f"Loaded {len(run_dfs)} runs  ({len(full_df):,} samples total)")
 
-num_ip_features = len(feature_cols)
 
-# Normalize features
+# ── 2. Run-based split ────────────────────────────────────────────────────────
+train_df = full_df[full_df['run_name'].isin(TRAIN_RUNS)].copy()
+val_df   = full_df[full_df['run_name'].isin(VAL_RUNS)].copy()
+test_df  = full_df[full_df['run_name'].isin(TEST_RUNS)].copy()
+
+unassigned = [r for r in full_df['run_name'].unique()
+              if r not in set(TRAIN_RUNS) | set(VAL_RUNS) | set(TEST_RUNS)]
+if unassigned:
+    print(f"[INFO] Excluded runs: {unassigned}")
+
+print(f"\nSplit summary")
+print(f"  Train : {len(train_df):>9,} samples  ({len(TRAIN_RUNS)} runs)")
+print(f"  Val   : {len(val_df):>9,} samples  ({len(VAL_RUNS)} runs)")
+print(f"  Test  : {len(test_df):>9,} samples  ({len(TEST_RUNS)} runs)")
+
+
+# ── 3. Scale ──────────────────────────────────────────────────────────────────
 scaler_X = StandardScaler()
-scaler_y = StandardScaler()
+X_train  = scaler_X.fit_transform(train_df[FEATURE_COLS].values.astype(np.float32))
+y_train  = train_df[TARGET_COL].values.reshape(-1, 1).astype(np.float32)
+X_val    = scaler_X.transform(val_df[FEATURE_COLS].values.astype(np.float32))
+y_val    = val_df[TARGET_COL].values.reshape(-1, 1).astype(np.float32)
+X_test   = scaler_X.transform(test_df[FEATURE_COLS].values.astype(np.float32))
+y_test   = test_df[TARGET_COL].values.reshape(-1, 1).astype(np.float32)
 
-X_train_scaled = scaler_X.fit_transform(X_train)
-X_val_scaled = scaler_X.transform(X_val)
-X_test_scaled = scaler_X.transform(X_test)
+scaler_path = os.path.join(SAVE_DIR, f'{MODEL_NAME}_scalers.pkl')
+joblib.dump({'scaler_X': scaler_X, 'scaler_y': None}, scaler_path)
+print(f"\nScaler saved → {scaler_path}")
+for name, mean, scale in zip(FEATURE_COLS, scaler_X.mean_, scaler_X.scale_):
+    print(f"  {name:<25} mean={mean:.4f}  std={scale:.4f}")
 
-y_train_scaled = y_train
-y_val_scaled = y_val
-y_test_scaled = y_test
 
-joblib.dump({"scaler_X": scaler_X , "scaler_y": scaler_y}, f"{save_path}\\scalers_3_features.pkl")
+# ── 4. DataLoaders ────────────────────────────────────────────────────────────
+class _PairDataset(Dataset):
+    def __init__(self, X, y):
+        self.X = torch.from_numpy(X)
+        self.y = torch.from_numpy(y)
+    def __len__(self):
+        return len(self.X)
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
 
-# Create device
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(f"Using device: {device}")
-    
-# Create datasets and dataloaders
-train_dataset = TensorPairDataset(X_train_scaled, y_train_scaled)
-val_dataset = TensorPairDataset(X_val_scaled, y_val_scaled)
-test_dataset = TensorPairDataset(X_test_scaled, y_test_scaled)
+train_loader = DataLoader(_PairDataset(X_train, y_train), batch_size=BATCH_SIZE, shuffle=True,  num_workers=0)
+val_loader   = DataLoader(_PairDataset(X_val,   y_val),   batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+test_loader  = DataLoader(_PairDataset(X_test,  y_test),  batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
 
-# Create MLP model
-model = MLP_SOC(input_size=num_ip_features, hidden_sizes=[64, 32, 16], output_size=1).to(device)
 
-# print model summary
-summary(model, input_size=(1, num_ip_features))
-
-# Create Model Manager
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+# ── 5. Model ──────────────────────────────────────────────────────────────────
+device    = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model     = MLP_SOC(input_size=len(FEATURE_COLS), hidden_sizes=HIDDEN_SIZES, output_size=1)
+optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 criterion = torch.nn.MSELoss()
-mlp_manager = ModelManager(model, device=device, optimizer=optimizer, criterion=criterion)
+manager   = ModelManager(model, device=device, optimizer=optimizer, criterion=criterion)
+manager.scaler_X = scaler_X
 
-batch_size = 64
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+print(f"\nModel: MLP {HIDDEN_SIZES}  |  params: {sum(p.numel() for p in model.parameters()):,}")
 
-history = mlp_manager.start_training(train_loader=train_loader, val_loader=val_loader, epochs=200, patience=20, save_path=f"{save_path}\\mlp_model_3_features-64-32-16-1.pth", verbose=True)
 
-# Evaluate on test set
-test_metrics = mlp_manager.validate(test_loader)
-print(f"\n--- Test Set Evaluation ---")
-print(f"  Loss:  {test_metrics['loss']:.6f}")
-print(f"  MAE:   {test_metrics['mae']:.4f}")
-print(f"  RMSE:  {test_metrics['rmse']:.4f}")
-print(f"  R²:    {test_metrics['r2']:.4f}")
+# ── 6. Train ──────────────────────────────────────────────────────────────────
+model_path = os.path.join(SAVE_DIR, f'{MODEL_NAME}.pth')
+print(f"Training on {device}  →  {model_path}")
+print("=" * 60)
 
-# plot training history
-plt.figure(figsize=(10, 5))
-plt.plot(history['train_loss'], label='Train Loss')
-plt.plot(history['val_loss'], label='Val Loss')
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
-plt.title('MLP Training History')
-plt.legend()
-plt.grid()
-plt.show()
+history = manager.start_training(
+    train_loader=train_loader,
+    val_loader=val_loader,
+    epochs=EPOCHS,
+    patience=PATIENCE,
+    save_path=model_path,
+    verbose=True,
+)
+
+
+# ── 7. Test-set evaluation ────────────────────────────────────────────────────
+print("\n" + "=" * 60)
+print("Test-set results")
+print("=" * 60)
+test_metrics = manager.validate(test_loader)
+print(f"  Loss  (MSE) : {test_metrics['loss']:.6f}")
+print(f"  MAE         : {test_metrics['mae']*100:.2f} %")
+print(f"  RMSE        : {test_metrics['rmse']*100:.2f} %")
+print(f"  R²          : {test_metrics['r2']:.4f}")
+
+
+# ── 8. Training curve ─────────────────────────────────────────────────────────
+fig, ax = plt.subplots(figsize=(10, 4))
+ax.plot(history['train_loss'], label='Train Loss')
+ax.plot(history['val_loss'],   label='Val Loss')
+ax.set_xlabel('Epoch')
+ax.set_ylabel('MSE Loss')
+ax.set_title(f'BMS MLP {HIDDEN_SIZES} — Training History')
+ax.legend()
+ax.grid(True)
+plt.tight_layout()
+curve_path = os.path.join(SAVE_DIR, f'{MODEL_NAME}_training_curve.png')
+plt.savefig(curve_path, dpi=150)
+print(f"\nTraining curve saved → {curve_path}")

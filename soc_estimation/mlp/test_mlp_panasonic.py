@@ -26,7 +26,8 @@ HDF5_PATH  = r'dataset\all_data\h5_files\hoverboard_bms_dataset.h5'
 SAVE_DIR   = r'soc_estimation\mlp\outputs'
 MODEL_NAME = 'mlp_panasonic'
 
-FEATURE_COLS = ['Voltage [V]', 'Current [A]', 'Temperature [degC]']
+FEATURE_COLS = ['Voltage [V]', 'Current [A]', 'Temperature [degC]',
+                'Cycle Charge [Ah]', 'Cycle Capacity [Wh]']
 TARGET_COL   = 'SOC [-]'
 
 # Pack topology — Panasonic model was trained on single-cell measurements.
@@ -42,7 +43,7 @@ model_path  = os.path.join(SAVE_DIR, f'{MODEL_NAME}.pth')
 scaler_path = os.path.join(SAVE_DIR, f'{MODEL_NAME}_scalers.pkl')
 
 # ── Load model ────────────────────────────────────────────────────────────────
-model   = MLP_SOC(input_size=3, hidden_sizes=[64, 32, 16], output_size=1)
+model   = MLP_SOC(input_size=len(FEATURE_COLS), hidden_sizes=[128, 64, 32, 16], output_size=1)
 manager = ModelManager(model, device='cpu')
 manager.load_model_weights(model_path)
 scalers = joblib.load(scaler_path)
@@ -53,15 +54,28 @@ manager.model.eval()
 run_dfs = []
 with h5py.File(HDF5_PATH, 'r') as f:
     for run_name in f.keys():
-        g = f[run_name]['bms']
+        g         = f[run_name]['bms']
+        ts_ms     = f[run_name]['timestamp_ms'][:].astype(np.float64)
         temp_vals = g['temp_values'][:]
+        voltage   = g['voltage'][:].astype(np.float32)
+        current   = g['current'][:].astype(np.float32)
+
+        # Coulomb counting on per-cell values to match Panasonic single-cell ranges
+        dt_s              = np.diff(ts_ms / 1000.0, prepend=ts_ms[0] / 1000.0).astype(np.float32)
+        cell_i            = current / N_PARALLEL
+        cell_v            = voltage / N_SERIES
+        cycle_charge_ah   = np.cumsum(cell_i * dt_s / 3600.0)
+        cycle_capacity_wh = np.cumsum(cell_v * cell_i * dt_s / 3600.0)
+
         df = pd.DataFrame({
             # Divide by pack topology to get per-cell values matching Panasonic training range
-            'Voltage [V]':        g['voltage'][:].astype(np.float32) / N_SERIES,
-            'Current [A]':        g['current'][:].astype(np.float32) / N_PARALLEL,
-            'Temperature [degC]': temp_vals.mean(axis=1).astype(np.float32),
-            'SOC [-]':            g['battery_level'][:].astype(np.float32) / 100.0,
-            'run_name':           run_name,
+            'Voltage [V]':         voltage                                    / N_SERIES,
+            'Current [A]':         current                                    / N_PARALLEL,
+            'Temperature [degC]':  temp_vals.mean(axis=1).astype(np.float32),
+            'Cycle Charge [Ah]':   cycle_charge_ah,
+            'Cycle Capacity [Wh]': cycle_capacity_wh,
+            'SOC [-]':             g['battery_level'][:].astype(np.float32) / 100.0,
+            'run_name':            run_name,
         })
         run_dfs.append(df)
 
