@@ -35,3 +35,6 @@ dataset/Panasonic 18650PF Data/
 
 # Ignore lstm outputs
 /soc_estimation/lstm/outputs/
+
+# Ignore .mat files
+*.mat

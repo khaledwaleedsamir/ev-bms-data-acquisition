@@ -1,0 +1,22 @@
+# Charge run configuration template.
+# Copy this file, rename it (e.g. full_charge_run004.toml), and fill in the values below.
+# No [discharge] section needed — hoverboard is not used in charge mode.
+
+[run]
+name        = "run_full_charge_XXX"          # unique run identifier stored in the HDF5 file
+mode        = "charge"
+description = "Describe your charge run here."
+stop_soc    = 100.0                          # stop when battery_level >= this value (%)
+
+[hardware]
+hdf5_file    = "dataset/all_data/h5_files/your_file.h5"
+bms_name     = "EGIKE_STATION_1"
+hb_com_port  = ""                            # leave empty — no hoverboard in charge mode
+hb_baud_rate = 115200
+
+[logging]
+log_hz = 1                                   # samples per second (must be >= 1)
+
+[metadata]
+battery_pack = "Lithium-Ion 42V 10.2Ah"
+battery_age  = "new"

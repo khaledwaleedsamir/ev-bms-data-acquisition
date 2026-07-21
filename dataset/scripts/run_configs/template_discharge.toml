@@ -1,0 +1,26 @@
+# Discharge run configuration template.
+# Copy this file, rename it (e.g. discharge_80pct_run016.toml), and fill in the values below.
+
+[run]
+name        = "run_XXX_description"          # unique run identifier stored in the HDF5 file
+mode        = "discharge"
+description = "Describe your run here."
+stop_soc    = 30.0                           # stop when battery_level <= this value (%)
+
+[hardware]
+hdf5_file    = "dataset/all_data/h5_files/your_file.h5"
+bms_name     = "EGIKE_STATION_1"
+hb_com_port  = "COM3"
+hb_baud_rate = 115200
+
+[discharge]
+full_speed     = 580                         # maximum speed value for the hoverboard
+speed_fraction = 0.8                         # fraction of full_speed to target
+# speed is computed in Python: int(full_speed * speed_fraction) → 464
+
+[logging]
+log_hz = 1                                   # samples per second (must be >= 1)
+
+[metadata]
+battery_pack = "Lithium-Ion 42V 10.2Ah"
+battery_age  = "new"
