@@ -8,7 +8,8 @@ import copy
 import joblib
 
 class MLP_SOC(nn.Module):
-    def __init__(self, input_size=3, hidden_sizes=[64, 32, 16], output_size=1):
+    def __init__(self, input_size=3, hidden_sizes=[64, 32, 16], output_size=1,
+                 output_activation="sigmoid"):
         super(MLP_SOC, self).__init__()
 
         layers = []
@@ -24,9 +25,11 @@ class MLP_SOC(nn.Module):
 
         # Output layer
         layers.append(nn.Linear(prev_size, output_size))
-        
-        # Sigmoid to constrain output to [0, 1] for SOC
-        layers.append(torch.nn.Sigmoid())
+
+        # Sigmoid constrains output to [0, 1] for absolute SOC targets;
+        # use output_activation="none" for signed targets (e.g. delta-SOC).
+        if output_activation == "sigmoid":
+            layers.append(torch.nn.Sigmoid())
 
         self.network = nn.Sequential(*layers)
 
