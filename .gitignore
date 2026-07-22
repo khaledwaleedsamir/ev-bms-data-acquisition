@@ -38,3 +38,6 @@ dataset/Panasonic 18650PF Data/
 
 # Ignore .mat files
 *.mat
+
+# Ignore latex files
+*.tex

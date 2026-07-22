@@ -10,12 +10,12 @@ import time
 ######################################## CONFIGS ########################################
 
 # HDF5 file parameters
-hdf5_file = "dataset/all_data/h5_files/hoverboard_bms_HPPC_data.h5"
+hdf5_file = "dataset/all_data/h5_files/drive_cycle_data_final.h5"
 
 # run parameters
-run_name = "run_full_charge"
+run_name = "run004_full_charge_after_US06"
 run_metadata = {
-    "description": "cont. charging the battery to 100% SOC after running full HPPC test.",
+    "description": "cont. charging the battery to 100% SOC after US06 drive cycle profile discharge.",
     "date": get_date_string(),
     "battery_pack": "Lithium-Ion, 42V, 10.2Ah",
     "battery_age": "new",
@@ -82,7 +82,7 @@ def data_logger(bms_reader):
         #     print(f"Reached stop SOC ({stop_soc}%), stopping run.")
         #     stop_flag.set()
         #     break
-        # time.sleep(sample_interval)
+        time.sleep(sample_interval)
 
 ######################################## MAIN RUN ########################################
 

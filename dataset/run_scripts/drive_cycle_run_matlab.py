@@ -1,29 +1,26 @@
 """
-Panasonic 18650PF drive-cycle replay run script.
+Panasonic 18650PF drive-cycle replay run script WITH live BMS streaming to MATLAB.
 
-Replays a drive-cycle current profile from the Panasonic 18650PF dataset
-(dataset/Panasonic 18650PF Data/.../25degC/Drive cycles/*.mat) on the
-UTL8211+ DC electronic load (drivers/utl8211.py).
+Combines drive_cycle_run.py (drive-cycle replay on the UTL8211 DC load, with
+HDF5 logging) and bms_to_matlab.py (TCP/JSON BMS stream for MATLAB) into a
+single run: the drive-cycle replay runs on the main thread exactly as in
+drive_cycle_run.py, while a background thread streams the latest BMS sample
+to MATLAB over TCP (newline-delimited JSON) at MATLAB_LOG_HZ, independent of
+the HDF5 logging rate.
 
-The load can only sink current, so the (brief) regen/charge portions of the
-profile (positive current in the Panasonic sign convention) are clamped to
-0A (idle) rather than reversed. The remaining discharge-current magnitude is
-then min-max normalized to [0, max_load_current] (0 at idle, max_load_current
-at the profile's own peak) so the full drive-cycle *shape* is preserved
-without any clipping, within the load's 400W / 9A safety ceiling:
-
-    load_current(t) = |discharge_current(t)| * (max_load_current / peak(|discharge_current|))
-
-The source current profile is resampled onto a fixed control period
-(control_period, from CONTROL_HZ) before replay, so the control/logging
-loop runs at a steady rate instead of following the dataset's irregular
-original sample spacing.
-
-The run aborts early (load input off, current cut to 0) if BMS-reported
-SOC or pack voltage drops below the configured cutoffs.
+Usage
+-----
+1. Edit the CONFIGS section below (drive-cycle + MATLAB TCP settings).
+2. Run from the repo root:
+       python -m dataset.run_scripts.drive_cycle_run_matlab
+3. In MATLAB, run  bms_receiver.m  — it will connect to this server. It can
+   connect/disconnect at any point during the run; the server keeps
+   listening and resumes streaming to the next connection.
 """
 
 import os
+import socket
+import json
 import time
 import threading
 
@@ -33,6 +30,7 @@ from dataset.dataset_utils import (
     init_run_dynamic, append_row,
     get_timestamp, get_date_string, get_time_string
 )
+from dataset.run_scripts.bms_to_matlab import _BMSEncoder, _sanitize
 from drivers.bms_reader import BMSReader
 from drivers.utl8211 import UTL8211, Mode
 from soc_estimation.panasonic_loader import load_mat_file, CYCLE_TYPES
@@ -40,7 +38,7 @@ from soc_estimation.panasonic_loader import load_mat_file, CYCLE_TYPES
 ######################################## CONFIGS ########################################
 
 hdf5_file = "dataset/all_data/h5_files/drive_cycle_data_final.h5"
-run_name  = "run_003_drivecycle_US06_5"
+run_name  = "run_003_drivecycle_US06_6"
 run_metadata = {
     "description":    "US06 drive-cycle current profile replayed on UTL8211 DC load.",
     "date":           get_date_string(),
@@ -76,6 +74,11 @@ current_protection_margin  = 1.1   # OCP = margin * min(peak current, max_load_c
 min_soc_cutoff     = 15.0   # % BMS battery_level
 min_voltage_cutoff = 30.0   # V pack voltage (BMS-reported)
 
+# --- MATLAB TCP stream ---
+TCP_HOST      = "0.0.0.0"   # listen on all interfaces (127.0.0.1 for localhost only)
+TCP_PORT      = 5005         # MATLAB connects to this port
+MATLAB_LOG_HZ = 1            # samples per second to send to MATLAB
+
 ######################################## END CONFIGS ########################################
 
 stop_flag = threading.Event()
@@ -106,6 +109,49 @@ bms_init_sample = {
 }
 
 last_bms = dict(bms_init_sample)
+
+######################################## MATLAB TCP STREAM ########################################
+
+def matlab_server_thread(bms_reader: BMSReader) -> None:
+    """Background thread: stream the latest BMS sample to MATLAB over TCP
+    (newline-delimited JSON) until stop_flag is set. Runs independently of
+    the drive-cycle replay loop and its HDF5 logging rate."""
+    interval = 1.0 / MATLAB_LOG_HZ
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind((TCP_HOST, TCP_PORT))
+        srv.listen(1)
+        srv.settimeout(1.0)  # periodic wakeups so stop_flag is checked while waiting for a connection
+        print(f"[matlab] TCP server listening on {TCP_HOST}:{TCP_PORT} — waiting for MATLAB…")
+
+        while not stop_flag.is_set():
+            try:
+                conn, addr = srv.accept()
+            except socket.timeout:
+                continue
+
+            print(f"[matlab] MATLAB connected from {addr}")
+            last_sent = None
+            try:
+                with conn:
+                    while not stop_flag.is_set():
+                        t0 = time.monotonic()
+
+                        sample = bms_reader.get_latest()
+                        if sample is not None:
+                            last_sent = sample
+
+                        if last_sent is not None:
+                            payload = _sanitize(last_sent)
+                            payload["timestamp"] = time.time()  # Unix seconds
+                            line = json.dumps(payload, cls=_BMSEncoder) + "\n"
+                            conn.sendall(line.encode("utf-8"))
+
+                        elapsed = time.monotonic() - t0
+                        time.sleep(max(0.0, interval - elapsed))
+            except (BrokenPipeError, ConnectionResetError, OSError) as exc:
+                print(f"[matlab] MATLAB disconnected ({exc}). Waiting for reconnect…")
 
 ######################################## DRIVE CYCLE LOADING ########################################
 
@@ -272,6 +318,9 @@ while bms_reader.get_latest() is None:
     print("Waiting for BMS Bluetooth connection...")
     time.sleep(1)
 
+matlab_thread = threading.Thread(target=matlab_server_thread, args=(bms_reader,), daemon=True)
+matlab_thread.start()
+
 try:
     run_drive_cycle(load, bms_reader, t_grid, currents)
 except KeyboardInterrupt:
@@ -282,4 +331,6 @@ finally:
     load.input_on(False)
     load.close()
     bms_reader.stop()
+    stop_flag.set()
+    matlab_thread.join(timeout=2.0)
     print("Cleanup complete.")
