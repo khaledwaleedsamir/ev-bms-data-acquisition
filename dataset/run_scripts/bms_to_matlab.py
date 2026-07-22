@@ -16,6 +16,7 @@ import socket
 import json
 import time
 import logging
+import dataclasses
 
 from drivers.bms_reader import BMSReader
 
@@ -36,6 +37,8 @@ class _BMSEncoder(json.JSONEncoder):
             return obj.tolist()
         if isinstance(obj, (tuple,)):    # tuple → list
             return list(obj)
+        if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+            return dataclasses.asdict(obj)   # e.g. aiobmsble TempSensor
         return super().default(obj)
 
 

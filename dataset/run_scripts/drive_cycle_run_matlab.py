@@ -19,6 +19,7 @@ Usage
 """
 
 import os
+import dataclasses
 import socket
 import json
 import time
@@ -110,6 +111,31 @@ bms_init_sample = {
 
 last_bms = dict(bms_init_sample)
 
+######################################## BMS SAMPLE NORMALIZATION ########################################
+
+def _scalar(v):
+    """Extract a plain float from a numeric value or a wrapper object such
+    as aiobmsble's TempSensor(value, type) NamedTuple/dataclass. Some
+    aiobmsble versions return these for temp_values entries instead of
+    plain numbers, which h5py can't write directly."""
+    if isinstance(v, (int, float)):
+        return float(v)
+    if dataclasses.is_dataclass(v) and not isinstance(v, type):
+        v = dataclasses.astuple(v)
+    if isinstance(v, tuple) and v:
+        return float(v[0])
+    return float(v)
+
+
+def _normalize_bms(sample: dict) -> dict:
+    """Normalize fields that may come back as wrapper objects instead of
+    plain numbers, depending on the installed aiobmsble version."""
+    out = dict(sample)
+    temp_values = out.get("temp_values")
+    if temp_values is not None:
+        out["temp_values"] = [_scalar(t) for t in temp_values]
+    return out
+
 ######################################## MATLAB TCP STREAM ########################################
 
 def matlab_server_thread(bms_reader: BMSReader) -> None:
@@ -140,7 +166,7 @@ def matlab_server_thread(bms_reader: BMSReader) -> None:
 
                         sample = bms_reader.get_latest()
                         if sample is not None:
-                            last_sent = sample
+                            last_sent = _normalize_bms(sample)
 
                         if last_sent is not None:
                             payload = _sanitize(last_sent)
@@ -262,7 +288,7 @@ def run_drive_cycle(load, bms_reader, t_grid, currents):
 
             sample = bms_reader.get_latest()
             if sample is not None:
-                last_bms = sample
+                last_bms = _normalize_bms(sample)
 
             soc     = last_bms.get("battery_level")
             voltage = last_bms.get("voltage")

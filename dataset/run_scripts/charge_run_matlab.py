@@ -19,6 +19,7 @@ Usage
 from dataset.dataset_utils import append_row, get_timestamp, get_date_string, get_time_string, init_run_dynamic
 from dataset.run_scripts.bms_to_matlab import _BMSEncoder, _sanitize
 from drivers.bms_reader import BMSReader
+import dataclasses
 import socket
 import json
 import threading
@@ -84,6 +85,31 @@ stop_flag = threading.Event()
 last_hb = hb_init_sample
 last_bms = bms_init_sample
 ######################################## FUNCTIONS ########################################
+
+def _scalar(v):
+    """Extract a plain float from a numeric value or a wrapper object such
+    as aiobmsble's TempSensor(value, type) NamedTuple/dataclass. Some
+    aiobmsble versions return these for temp_values entries instead of
+    plain numbers, which h5py can't write directly."""
+    if isinstance(v, (int, float)):
+        return float(v)
+    if dataclasses.is_dataclass(v) and not isinstance(v, type):
+        v = dataclasses.astuple(v)
+    if isinstance(v, tuple) and v:
+        return float(v[0])
+    return float(v)
+
+
+def _normalize_bms(sample: dict) -> dict:
+    """Normalize fields that may come back as wrapper objects instead of
+    plain numbers, depending on the installed aiobmsble version."""
+    out = dict(sample)
+    temp_values = out.get("temp_values")
+    if temp_values is not None:
+        out["temp_values"] = [_scalar(t) for t in temp_values]
+    return out
+
+
 def data_logger(bms_reader):
     global last_hb, last_bms
     hb_dict = last_hb
@@ -93,7 +119,7 @@ def data_logger(bms_reader):
         # Get latest BMS sample
         bms_sample = bms_reader.get_latest()
         if bms_sample is not None:
-            last_bms = bms_sample
+            last_bms = _normalize_bms(bms_sample)
         bms_dict = last_bms  # use last-known if current is None
         print(bms_dict)
         # Append row to HDF5
@@ -135,7 +161,7 @@ def matlab_server_thread(bms_reader: BMSReader) -> None:
 
                         sample = bms_reader.get_latest()
                         if sample is not None:
-                            last_sent = sample
+                            last_sent = _normalize_bms(sample)
 
                         if last_sent is not None:
                             payload = _sanitize(last_sent)
