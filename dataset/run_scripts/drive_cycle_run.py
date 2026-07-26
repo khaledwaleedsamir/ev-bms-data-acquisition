@@ -40,7 +40,7 @@ from soc_estimation.panasonic_loader import load_mat_file, CYCLE_TYPES
 ######################################## CONFIGS ########################################
 
 hdf5_file = "dataset/all_data/h5_files/drive_cycle_data_final.h5"
-run_name  = "run_003_drivecycle_US06_5"
+run_name  = "run_003_drivecycle_US06_6"
 run_metadata = {
     "description":    "US06 drive-cycle current profile replayed on UTL8211 DC load.",
     "date":           get_date_string(),
