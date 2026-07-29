@@ -16,9 +16,11 @@ Protocol (agreed before writing this script):
     capacity regardless of speed (SOC is literally a measure of energy
     remaining) -- so higher power during transit only buys back wall-clock
     time, it doesn't change how much of the pack gets used.
-  - Rest before the first checkpoint and after the last, for a clean
-    rest-OCV anchor at both ends -- same requirement soc_relabel.py's
-    dual-anchor coulomb counting already relies on for every existing run.
+  - Rest after the last checkpoint, for a clean rest-OCV anchor at the low-SOC
+    end -- same requirement soc_relabel.py's dual-anchor coulomb counting
+    already relies on for every existing run. No rest wait at the start: the
+    pack is assumed already at rest before the script is launched, so the
+    first few logged samples serve as the high-SOC anchor.
 
 Live SOC (for driving checkpoint/transit transitions and the safety floor)
 comes straight from the BMS's own reported battery_level. The actual data
@@ -65,7 +67,11 @@ from dataset.dataset_utils import (
 from drivers.bms_reader import BMSReader
 from drivers.hoverboard_controller import HoverboardController
 from range_controller.constants import FULL_SPEED
-from soc_estimation.soc_relabel import DROPOUT_VOLTAGE
+
+DROPOUT_VOLTAGE = 25.0   # BMS/BLE dropout threshold -- kept local so this script
+                         # doesn't need soc_relabel.py's HPPC-derived OCV/R_int
+                         # curve (output_figures/hppc/hppc_results.csv), which
+                         # this script never uses.
 
 ######################################## CONFIGS ########################################
 CONDITION_LOAD_KG = 0
@@ -76,7 +82,6 @@ CALIBRATION_SPEEDS_PCT = [20, 40, 60, 80, 100]            # order used within ea
 DWELL_S = 3 * 60                                          # per-speed dwell inside a calibration block
 TRANSIT_SPEED_PCT = 100                                   # fastest candidate -- minimizes wall-clock time between checkpoints
 
-REST_BEFORE_S = 20 * 60      # clean high-SOC OCV anchor
 REST_AFTER_S = 20 * 60       # clean low-SOC OCV anchor
 SAFETY_FLOOR_SOC_PCT = 15.0  # hardware interlock -- stops regardless of checkpoint schedule if tripped
 
@@ -139,21 +144,6 @@ def set_phase(hoverboard, speed_pct, phase):
         current_commanded_speed_pct = speed_pct
         current_phase = phase
     hoverboard.ramp_speed(pct_to_raw_speed(speed_pct))
-
-
-def rest_hold_median_sample(bms_reader, duration_s, label):
-    print(f"Resting {duration_s / 60:.0f} min for a clean OCV anchor ({label})...")
-    voltages, currents = [], []
-    t_end = time.time() + duration_s
-    while time.time() < t_end:
-        s = bms_reader.get_latest()
-        if s and s.get("voltage") is not None:
-            voltages.append(s["voltage"])
-            currents.append(s.get("current", 0.0) or 0.0)
-        time.sleep(1.0)
-    voltages.sort()
-    currents.sort()
-    return voltages[len(voltages) // 2], currents[len(currents) // 2]
 
 
 ######################################## CONTROL (main thread) ########################################
@@ -286,14 +276,12 @@ def main():
     while hoverboard.get_feedback() is None:
         time.sleep(0.5)
 
-    # ---- Rest before start: clean high-SOC OCV anchor for soc_relabel.py's
-    # offline labeling. rest_v/rest_i are printed only as a sanity check
-    # (confirms the pack actually settled -- near-zero current, stable
-    # voltage); nothing here is used to derive a live SOC value. ----
-    rest_v, rest_i = rest_hold_median_sample(bms_reader, REST_BEFORE_S, "start")
+    # ---- No pre-run rest wait: pack is assumed already at rest (idle since
+    # before this script started), so the first few logged samples serve as
+    # the start-of-run OCV anchor for soc_relabel.py's offline labeling. ----
     start_soc = live_soc(bms_reader)
     start_soc_str = f"{start_soc:.1f}%" if start_soc is not None else "unknown"
-    print(f"Rest reading: V={rest_v:.2f}, I={rest_i:.2f} -- BMS-reported starting SOC = {start_soc_str}")
+    print(f"BMS-reported starting SOC = {start_soc_str}")
 
     # ---- HDF5 init ----
     first_bms = bms_reader.get_latest()
