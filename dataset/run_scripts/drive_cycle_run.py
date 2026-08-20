@@ -39,13 +39,13 @@ from soc_estimation.panasonic_loader import load_mat_file, CYCLE_TYPES
 
 ######################################## CONFIGS ########################################
 
-hdf5_file = "dataset/all_data/h5_files/drive_cycle_data_final.h5"
+hdf5_file = "dataset/all_data/h5_files/drive_cycle_data_2ndlife.h5"
 run_name  = "run_003_drivecycle_US06_6"
 run_metadata = {
     "description":    "US06 drive-cycle current profile replayed on UTL8211 DC load.",
     "date":           get_date_string(),
-    "battery_pack":   "Lithium-Ion, 42V, 10.2Ah",
-    "battery_age":    "new",
+    "battery_pack":   "Lithium-Ion, 42v, Nominal Capacity 10.5Ah, Current Capacity: Unknown",
+    "battery_age":    "Second-life pack",
 }
 
 load_com_port  = "COM7"

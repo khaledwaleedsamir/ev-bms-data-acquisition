@@ -82,20 +82,24 @@ def init_run_dynamic(hdf5_file: str, run_name: str, metadata: dict,
         # Hoverboard datasets
         g_hover = g_run.create_group("hoverboard")
         for key, val in hoverboard_sample.items():
-            dtype = np.float32 if isinstance(val, float) else np.int32
             if isinstance(val, list):
                 # Determine shape from list length
                 g_hover.create_dataset(key, shape=(0, len(val)), maxshape=(None, len(val)), dtype=np.float32)
+            elif isinstance(val, str):
+                g_hover.create_dataset(key, shape=(0,), maxshape=(None,), dtype=h5py.string_dtype(encoding='utf-8'))
             else:
+                dtype = np.float32 if isinstance(val, float) else np.int32
                 g_hover.create_dataset(key, shape=(0,), maxshape=(None,), dtype=dtype)
-        
+
         # BMS datasets
         g_bms = g_run.create_group("bms")
         for key, val in bms_sample.items():
-            dtype = np.float32 if isinstance(val, float) else np.int32
             if isinstance(val, list):
                 g_bms.create_dataset(key, shape=(0, len(val)), maxshape=(None, len(val)), dtype=np.float32)
+            elif isinstance(val, str):
+                g_bms.create_dataset(key, shape=(0,), maxshape=(None,), dtype=h5py.string_dtype(encoding='utf-8'))
             else:
+                dtype = np.float32 if isinstance(val, float) else np.int32
                 g_bms.create_dataset(key, shape=(0,), maxshape=(None,), dtype=dtype)
         
         # Metadata

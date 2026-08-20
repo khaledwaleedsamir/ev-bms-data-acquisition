@@ -10,15 +10,15 @@ import time
 ######################################## CONFIGS ########################################
 
 # HDF5 file parameters
-hdf5_file = "dataset/all_data/h5_files/drive_cycle_data_final.h5"
+hdf5_file = "dataset/all_data/h5_files/dc_load_bms_HPPC_data_2ndlife.h5"
 
 # run parameters
-run_name = "run004_full_charge_after_US06"
+run_name = "run_charge_02"
 run_metadata = {
-    "description": "cont. charging the battery to 100% SOC after US06 drive cycle profile discharge.",
+    "description": "Charge run to 100% SOC after HPPC test.",
     "date": get_date_string(),
-    "battery_pack": "Lithium-Ion, 42V, 10.2Ah",
-    "battery_age": "new",
+    "battery_pack": "Lithium-Ion, 42v, Nominal Capacity 10.5Ah, Current Capacity: Unknown",
+    "battery_age": "2nd-life pack",
     "Logging rate": "1 sample/sec"
 }
 speed = None                    # constant speed to maintain
