@@ -8,10 +8,13 @@ parser.add_argument("--output", required=True, help="Path to output HDF5 file")
 args = parser.parse_args()
 
 with h5py.File(args.output, 'w') as h5fw:
-    for i, input_path in enumerate(args.inputs, start=1):
-        prefix = f"file{i}"
+    for input_path in args.inputs:
+        prefix = os.path.splitext(os.path.basename(input_path))[0]
         with h5py.File(input_path, 'r') as h5fr:
             for obj_name in h5fr.keys():
-                h5fr.copy(obj_name, h5fw, name=f"{prefix}_{obj_name}")
+                out_name = f"{prefix}__{obj_name}"
+                if out_name in h5fw:
+                    raise ValueError(f"Unexpected name collision: '{out_name}'")
+                h5fr.copy(obj_name, h5fw, name=out_name)
 
 print(f"Combined {len(args.inputs)} files into {args.output}")

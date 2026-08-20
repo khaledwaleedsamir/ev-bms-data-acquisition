@@ -43,12 +43,12 @@ fluke." Rotate CALIBRATION_SPEEDS_PCT's order between repeats (e.g. reverse
 it) so no one speed is systematically last-in-block (and therefore
 measured at a slightly lower true SOC than the others) every time.
 
-KNOWN GAP: build_efficiency_dataset.py's STEADY_SPEED_RUNS currently assumes
-one fixed speed for an entire run. This script logs multiple speed segments
-inside a single HDF5 run (commanded_speed_pct is logged per row, so the
-segments are fully recoverable) -- but the ingestion side needs a small
-update to split by that per-row logged speed before this run's data can
-feed into efficiency_summary.csv. Not yet done.
+build_efficiency_dataset.py auto-discovers runs logged by this script (via
+the run_type="speed_soc_sweep" attr) and splits them by the per-row logged
+commanded_speed_pct instead of assuming one fixed speed per run -- see its
+load_sweep_run()/discover_sweep_runs(). Only calibration_* phase rows feed
+the table; transit/rest rows are excluded so every speed gets matched
+sampling.
 
 Run from the repo root: python -m dataset.run_scripts.sweep_run
 """
